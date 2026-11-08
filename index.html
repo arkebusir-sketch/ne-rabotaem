@@ -664,6 +664,24 @@
 </style>
 </head>
 <body class="loading">
+<script>
+/* Заставка: показываем один раз за визит (выключить: ?nointro) */
+(function () {
+  var skip = /[?&]nointro/.test(location.search) || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  try { if (sessionStorage.getItem("introSeen")) skip = true; } catch (e) {}
+  if (skip) { window.introGate = null; return; }
+  try { sessionStorage.setItem("introSeen", "1"); } catch (e) {}
+  var f = document.createElement("iframe");
+  f.id = "introFrame"; f.src = "intro.html?embed"; f.title = "Заставка"; f.allow = "autoplay";
+  f.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:2147483000;background:transparent;color-scheme:normal";
+  document.body.appendChild(f);
+  window.introGate = new Promise(function (res) {
+    function end() { if (f.parentNode) f.parentNode.removeChild(f); res(); }
+    addEventListener("message", function (e) { if (e.data === "intro-done") end(); });
+    setTimeout(end, 17000);
+  });
+})();
+</script>
 <a class="skip" href="#main">К содержимому</a>
 
 <div id="shutter" class="closed" aria-hidden="true">
@@ -2494,6 +2512,15 @@
   show(startPage, true);
   var t0 = Date.now();
   function begin() {
+    // После заставки ставня сайта уже открыта: заставка сама уезжает вверх
+    if (window.introGate) {
+      shutter.className = "";
+      window.introGate.then(function () {
+        document.body.classList.remove("loading");
+        if (enter[startPage]) enter[startPage]();
+      });
+      return;
+    }
     var left = Math.max(0, 1500 - (Date.now() - t0));
     wait(left, function () {
       openShutter(function () { document.body.classList.remove("loading"); });

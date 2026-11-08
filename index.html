@@ -1631,7 +1631,7 @@
     var body = {};
     body["staff/" + id] = null;
     body["fire/" + id] = pw;
-    return req("PATCH", "", body);
+    return req("PATCH", "/", body);
   }
   var bossBox = $("#bossBox"), bossMsg = $("#bossMsg");
   bossBox.addEventListener("submit", function (e) {
@@ -1641,7 +1641,7 @@
     if (a !== b) { bossMsg.textContent = "Пароли не совпадают."; return; }
     var body = { pwSet: true };
     body["pw/" + a] = true;
-    req("PATCH", "", body).then(function () {
+    req("PATCH", "/", body).then(function () {
       pwSet = true; store.set("bosspw", a);
       bossBox.hidden = true;
       toast("Пароль директора сохранён. Теперь увольнять можете только вы.");

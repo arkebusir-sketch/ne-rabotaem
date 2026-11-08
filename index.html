@@ -4,116 +4,846 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Не работаем</title>
-<meta name="description" content="Мы не работаем. И вам не советуем.">
+<meta name="description" content="Вывеска, которая не открывается. График работы, причины закрытия и комната отдыха.">
+<meta name="theme-color" content="#1d2fd0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23ffd21f'/%3E%3Ctext x='32' y='45' font-size='34' text-anchor='middle' font-family='Impact,sans-serif' fill='%230e1330'%3EZzz%3C/text%3E%3C/svg%3E">
 <style>
-  :root { --bg:#14110f; --fg:#f3ece2; --muted:#a89f93; --accent:#ff6b3d; --card:#201b18; }
+  :root {
+    --wall: #1d2fd0;
+    --wall-d: #131f94;
+    --sign: #ffd21f;
+    --chalk: #fbfaf5;
+    --stamp: #e0301e;
+    --ink: #0e1330;
+    --display: Impact, Haettenschweiler, "Arial Narrow Bold", "Roboto Condensed", sans-serif;
+    --text: Georgia, "Times New Roman", serif;
+    --hand: "Segoe Print", "Bradley Hand", "Marker Felt", "Comic Sans MS", cursive;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height:1.5; }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
-  h1 { font-size: clamp(40px, 9vw, 84px); line-height:1; margin:0 0 12px; letter-spacing:-0.03em; }
-  h1 span { color: var(--accent); }
-  .sub { color: var(--muted); font-size: 18px; margin: 0 0 40px; }
-  section { background: var(--card); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
-  h2 { margin: 0 0 14px; font-size: 20px; }
-  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 12px 18px; background: var(--accent); color: #1a0f0a; font-weight: 600; }
-  button:hover { filter: brightness(1.1); }
-  #excuse { font-size: 22px; min-height: 66px; margin: 0 0 14px; }
-  .bar { height: 14px; background: #33291f; border-radius: 99px; overflow: hidden; }
-  .bar i { display:block; height:100%; width:0; background: linear-gradient(90deg, #ffb347, var(--accent)); transition: width 1.2s ease; }
-  .bar-note { color: var(--muted); font-size: 14px; margin-top: 8px; }
-  #runaway { position: relative; height: 110px; }
-  #runaway button { position: absolute; left: 0; top: 30px; transition: left .12s, top .12s; }
-  ul.friends { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-  ul.friends li { background: #2a2420; border-radius: 10px; padding: 12px 14px; }
-  ul.friends b { display:block; }
-  ul.friends small { color: var(--muted); }
-  footer { color: var(--muted); font-size: 14px; text-align: center; margin-top: 30px; }
+  html { scroll-behavior: auto; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--wall);
+    color: var(--chalk);
+    font-family: var(--text);
+    font-size: 18px;
+    line-height: 1.6;
+    transition: background-color .4s;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.07) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(255,255,255,.07) 2px, transparent 2px);
+    background-size: 88px 88px;
+  }
+  body.loading { overflow: hidden; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 4px solid var(--chalk); outline-offset: 3px; }
+  .paper :focus-visible, .on-yellow:focus-visible { outline-color: var(--ink); }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--sign); color: var(--ink); padding: 8px 14px; z-index: 300; }
+  .skip:focus { left: 8px; }
+
+  /* Рольставни: переход между разделами */
+  #shutter {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    transform: translateY(-101%);
+    transition: transform .8s cubic-bezier(.65, 0, .35, 1);
+    background:
+      repeating-linear-gradient(180deg, #a3abc0 0, #bcc3d6 20px, #7a8299 20px, #7a8299 24px);
+    pointer-events: none;
+  }
+  #shutter.down {
+    transform: translateY(0);
+    transition: transform .5s cubic-bezier(.55, 0, .9, .5);
+    animation: land .45s .5s ease-out forwards;
+    pointer-events: auto;
+  }
+  @keyframes land {
+    0% { transform: translateY(0); }
+    35% { transform: translateY(-20px); }
+    65% { transform: translateY(0); }
+    82% { transform: translateY(-6px); }
+    100% { transform: translateY(0); }
+  }
+  .shutter-handle {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+    background: #4a5167; border-top: 8px solid #343b4e;
+  }
+  .shutter-handle::after {
+    content: ""; position: absolute; left: 50%; top: 6px; width: 22px; height: 22px; margin-left: -11px;
+    border-radius: 50%; background: var(--sign); border: 4px solid var(--ink);
+  }
+  .shutter-label {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) rotate(-2deg);
+    width: min(520px, 86vw);
+    text-align: center;
+    background: var(--sign); color: var(--ink);
+    border: 6px solid var(--ink);
+    padding: 20px 28px 22px;
+    box-shadow: 10px 10px 0 rgba(14, 19, 48, .45);
+  }
+  .shutter-label b { display: block; font-family: var(--display); font-weight: 400; font-size: clamp(36px, 8vw, 60px); line-height: 1.05; }
+  .shutter-label span { display: block; margin-top: 6px; font-style: italic; }
+
+  /* Шапка */
+  .bar {
+    position: relative; z-index: 20;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 16px 24px;
+    max-width: 1100px; width: 100%; margin: 0 auto;
+  }
+  .brand {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-family: var(--display); font-size: 30px; letter-spacing: .02em; color: var(--chalk);
+    text-shadow: 3px 3px 0 var(--ink);
+  }
+  .bar nav { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .bar nav a {
+    font-family: var(--display); font-size: 20px; letter-spacing: .02em;
+    color: var(--chalk); text-decoration: none;
+    padding: 4px 14px; border: 3px solid transparent; border-radius: 8px;
+  }
+  .bar nav a:hover { border-color: var(--chalk); }
+  .bar nav a.on { background: var(--sign); color: var(--ink); border-color: var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+  .btn {
+    font-family: var(--display); font-size: 22px; letter-spacing: .03em;
+    background: var(--sign); color: var(--ink);
+    border: 4px solid var(--ink); border-radius: 10px;
+    padding: 8px 20px; cursor: pointer;
+    box-shadow: 5px 5px 0 var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--ink); }
+  .btn:active { transform: translate(4px, 4px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.alt { background: var(--chalk); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: 5px 5px 0 var(--ink); }
+  .btn.small { font-size: 18px; padding: 4px 14px; box-shadow: 3px 3px 0 var(--ink); }
+  .party[aria-pressed="true"] { background: var(--stamp); color: var(--chalk); }
+
+  /* Страницы */
+  main { position: relative; z-index: 10; flex: 1; width: 100%; }
+  .page { display: none; max-width: 1100px; margin: 0 auto; padding: 16px 24px 56px; }
+  .page.on { display: block; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: .01em; margin: 0; }
+  h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: .96; text-shadow: 5px 5px 0 var(--ink); }
+  h2.title { font-size: clamp(40px, 6vw, 68px); line-height: 1; text-shadow: 4px 4px 0 var(--ink); margin-bottom: 28px; }
+  .lede { max-width: 36ch; font-size: 21px; margin: 22px 0 32px; }
+  .paper { background: var(--chalk); color: var(--ink); box-shadow: 10px 10px 0 var(--wall-d); }
+
+  /* Главная */
+  .home-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: start; }
+  .hang { order: 2; }
+  .swing { width: min(340px, 82vw); margin: 0 auto; transform-origin: 50% 10px; }
+  .swing.enter { animation: drop .9s cubic-bezier(.2, .9, .3, 1.15) both, swing 3.6s .9s ease-in-out both; }
+  .swing.kick { animation: swing2 1.8s ease-out both; }
+  @keyframes drop { from { transform: translateY(-130%); } to { transform: translateY(0); } }
+  @keyframes swing {
+    0% { transform: rotate(0); } 12% { transform: rotate(10deg); } 28% { transform: rotate(-7.5deg); }
+    44% { transform: rotate(5deg); } 60% { transform: rotate(-3deg); } 78% { transform: rotate(1.4deg); } 100% { transform: rotate(0); }
+  }
+  @keyframes swing2 {
+    0% { transform: rotate(0); } 18% { transform: rotate(-7deg); } 40% { transform: rotate(4.5deg); }
+    62% { transform: rotate(-2.4deg); } 82% { transform: rotate(1deg); } 100% { transform: rotate(0); }
+  }
+  .strings { display: block; width: 100%; height: auto; }
+  .strings line { stroke: var(--chalk); stroke-width: 3; }
+  .nail { fill: var(--sign); stroke: var(--ink); stroke-width: 3; }
+  .sign {
+    display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+    perspective: 900px; margin-top: -4px;
+  }
+  .plate {
+    position: relative; display: block; aspect-ratio: 340 / 220;
+    transform-style: preserve-3d;
+    transition: transform .8s cubic-bezier(.3, 1.5, .5, 1);
+  }
+  .plate.flip { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    border: 8px solid var(--ink); border-radius: 16px;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    box-shadow: 9px 9px 0 var(--wall-d);
+  }
+  .face.front { background: var(--sign); color: var(--ink); }
+  .face.back { background: var(--stamp); color: var(--chalk); transform: rotateY(180deg); }
+  .face .big { font-family: var(--display); font-size: clamp(54px, 15vw, 74px); line-height: 1; letter-spacing: .05em; }
+  .face .note { font-family: var(--hand); font-size: 20px; transform: rotate(-3deg); }
+  .hole { position: absolute; top: 12px; width: 16px; height: 16px; border-radius: 50%; background: var(--wall); border: 3px solid var(--ink); z-index: 2; }
+  .hole.l { left: calc(14.1% - 8px); }
+  .hole.r { right: calc(14.1% - 8px); }
+  .aside { text-align: center; font-style: italic; margin: 28px 0 0; min-height: 3.2em; }
+
+  table.hours { width: 100%; border-collapse: collapse; }
+  .hours caption { text-align: left; font-family: var(--display); font-size: 30px; padding: 16px 18px 8px; }
+  .hours th, .hours td { text-align: left; padding: 11px 18px; border-top: 2px solid rgba(14, 19, 48, .22); vertical-align: top; }
+  .hours th { font-weight: 700; width: 9.5em; position: relative; white-space: nowrap; }
+  .hours tr.today { background: #fff3b0; }
+  .hours tr.today th::after {
+    content: "сегодня"; position: absolute; left: 6.2em; top: 5px;
+    font-family: var(--display); font-weight: 400; font-size: 18px; color: var(--stamp);
+    border: 3px solid var(--stamp); border-radius: 5px; padding: 0 7px; transform: rotate(-7deg); line-height: 1.2;
+  }
+
+  /* Причины */
+  .stage { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 48px; align-items: center; }
+  .stage .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .sheet {
+    position: relative; max-width: 580px; padding: 40px 38px 28px;
+    transform: rotate(-1.4deg);
+  }
+  .sheet::before, .sheet::after {
+    content: ""; position: absolute; top: -15px; width: 100px; height: 30px; background: rgba(255, 210, 31, .85);
+  }
+  .sheet::before { left: 22px; transform: rotate(-6deg); }
+  .sheet::after { right: 22px; transform: rotate(5deg); }
+  .sheet h3 { font-size: 46px; color: var(--stamp); letter-spacing: .03em; margin-bottom: 10px; }
+  .sheet p { font-size: 24px; margin: 0 0 .7em; }
+  .sheet .sign-off { font-family: var(--hand); font-size: 22px; margin: 18px 0 0; transform: rotate(-2deg); }
+  .sheet.tear { animation: tear .55s cubic-bezier(.5, 0, .9, .4) forwards; }
+  .sheet.pin { animation: pin .6s cubic-bezier(.2, .9, .3, 1.25) both; }
+  @keyframes tear { to { transform: translate(140px, 130%) rotate(26deg); opacity: 0; } }
+  @keyframes pin { from { transform: translateY(-70px) rotate(-8deg); opacity: 0; } to { transform: rotate(-1.4deg); opacity: 1; } }
+
+  /* Развлечения */
+  .rest { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 44px; align-items: start; }
+  .lazy-wrap { text-align: center; }
+  .lazy {
+    width: 230px; height: 230px; border-radius: 50%; cursor: pointer;
+    background: var(--stamp); color: var(--chalk);
+    border: 8px solid var(--ink);
+    font-family: var(--display); font-size: 40px; letter-spacing: .05em;
+    box-shadow: inset 0 0 0 8px var(--stamp), inset 0 0 0 11px var(--chalk), 0 11px 0 var(--ink);
+    transition: transform .06s, box-shadow .06s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lazy:active { transform: translateY(9px); box-shadow: inset 0 0 0 8px var(--stamp), inset 0 0 0 11px var(--chalk), 0 2px 0 var(--ink); }
+  .score { font-family: var(--display); font-size: 44px; line-height: 1; margin: 30px 0 4px; text-shadow: 3px 3px 0 var(--ink); }
+  .rate { margin: 0; font-style: italic; }
+  .receipt { text-align: left; margin-top: 32px; padding: 16px 20px 8px; }
+  .receipt h3 { font-size: 28px; margin-bottom: 4px; }
+  .receipt ul { list-style: none; margin: 0; padding: 0; }
+  .receipt li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; align-items: center; padding: 11px 0; border-top: 2px dashed var(--ink); }
+  .receipt li b { font-family: var(--display); font-weight: 400; font-size: 21px; }
+  .receipt li small { grid-column: 1; font-size: 15px; }
+  .receipt li .btn { grid-column: 2; grid-row: 1 / span 2; }
+  .float { position: fixed; z-index: 150; pointer-events: none; font-family: var(--display); font-size: 32px; color: var(--sign); text-shadow: 3px 3px 0 var(--ink); animation: up 1s ease-out forwards; }
+  @keyframes up { to { transform: translateY(-110px); opacity: 0; } }
+  .react {
+    display: block; width: 100%; min-height: 156px; padding: 18px 22px; text-align: left; cursor: pointer;
+    background: var(--ink); color: var(--chalk);
+    border: 6px solid var(--chalk); border-radius: 12px;
+    font-family: var(--display); font-size: 32px; line-height: 1.15;
+    transition: background-color .12s;
+  }
+  .react small { display: block; margin-top: 8px; font-family: var(--text); font-size: 18px; line-height: 1.4; }
+  .react.wait { background: var(--stamp); }
+  .react.go { background: #12b76a; color: var(--ink); }
+  .react.early { background: var(--sign); color: var(--ink); }
+  .play-h { font-size: 30px; margin: 0 0 12px; text-shadow: 3px 3px 0 var(--ink); }
+  .side > * + * { margin-top: 36px; }
+  .arena { position: relative; height: 170px; border: 4px dashed var(--chalk); border-radius: 12px; overflow: hidden; }
+  .arena .btn { position: absolute; left: 18px; top: 62px; transition: left .14s, top .14s; touch-action: none; }
+  .arena-note { margin: 10px 0 0; font-style: italic; min-height: 3em; }
+
+  /* Штат */
+  table.roster { width: 100%; border-collapse: collapse; }
+  .roster th { font-family: var(--display); font-weight: 400; font-size: 22px; text-align: left; padding: 14px 18px; border-bottom: 4px solid var(--ink); }
+  .roster td { padding: 13px 18px; border-bottom: 2px solid rgba(14, 19, 48, .22); vertical-align: middle; }
+  .roster tbody tr { transition: background-color .12s; }
+  .roster tbody tr:hover { background: #fff3b0; }
+  .nm { all: unset; cursor: pointer; font-family: var(--display); font-size: 25px; }
+  .nm:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  .roster td.pay { position: relative; white-space: nowrap; padding-right: 130px; }
+  .stamp {
+    position: absolute; right: 14px; top: 50%; margin-top: -24px;
+    border: 4px solid var(--stamp); color: var(--stamp); border-radius: 6px;
+    font-family: var(--display); font-size: 28px; line-height: 1.25; padding: 0 10px;
+    transform: rotate(-9deg) scale(0); opacity: 0; pointer-events: none;
+  }
+  tr.stamped .stamp { animation: slam .38s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+  @keyframes slam {
+    0% { transform: rotate(-9deg) scale(3.4); opacity: 0; }
+    55% { opacity: 1; }
+    100% { transform: rotate(-9deg) scale(1); opacity: .92; }
+  }
+  .hire { display: flex; gap: 12px; flex-wrap: wrap; padding: 18px; border-top: 4px solid var(--ink); }
+  .hire input {
+    flex: 1 1 220px; font: inherit; font-size: 20px; padding: 8px 14px;
+    background: #fff; color: var(--ink); border: 4px solid var(--ink); border-radius: 10px;
+  }
+  .roster-note { padding: 0 18px 18px; margin: 0; font-style: italic; font-size: 16px; }
+
+  /* Бегущая строка */
+  .ticker { position: relative; z-index: 10; overflow: hidden; background: var(--sign); color: var(--ink); border-block: 6px solid var(--ink); }
+  .track { display: flex; width: max-content; animation: run 44s linear infinite; }
+  body.party .track { animation-duration: 9s; }
+  .track span { display: flex; align-items: center; gap: 28px; padding: 8px 0 8px 28px; white-space: nowrap; font-family: var(--display); font-size: 28px; }
+  .track span::after { content: ""; width: 12px; height: 12px; background: var(--ink); transform: rotate(45deg); }
+  @keyframes run { to { transform: translateX(-50%); } }
+
+  footer { position: relative; z-index: 10; max-width: 1100px; width: 100%; margin: 0 auto; padding: 22px 24px 30px; font-size: 16px; }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 120; pointer-events: none; }
+
+  /* Корпоратив */
+  body.party { animation: wall 2.4s steps(1) infinite; }
+  @keyframes wall {
+    0% { background-color: #1d2fd0; } 20% { background-color: #c21d7a; } 40% { background-color: #0a8f5c; }
+    60% { background-color: #7a2bd6; } 80% { background-color: #d46a0a; }
+  }
+
+  @media (max-width: 860px) {
+    .home-grid, .stage, .rest { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .hang { order: -1; }
+    .bar nav { margin-left: 0; width: 100%; }
+    .roster td.pay { padding-right: 18px; }
+    .roster th.pay-h, .roster td.pay { display: none; }
+    .roster td.role { padding-right: 90px; position: relative; }
+    .roster td.role .stamp { right: 10px; }
+  }
+  @media (min-width: 861px) { .roster td.role .stamp { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    .track { animation: none !important; }
+    body.party { animation: none !important; background-color: #c21d7a; }
+  }
 </style>
 </head>
-<body>
-<main>
-  <h1>Мы <span>не работаем</span></h1>
-  <p class="sub">Эта страница ничего не продаёт, ничего не обещает и никуда не торопится.</p>
+<body class="loading">
+<a class="skip" href="#main">К содержимому</a>
 
-  <section>
-    <h2>Почему мы не работаем сегодня</h2>
-    <p id="excuse">Нажмите кнопку, чтобы узнать причину.</p>
-    <button id="excuseBtn">Придумать причину</button>
+<div id="shutter" class="down" aria-hidden="true">
+  <div class="shutter-label"><b id="shLabel">Ещё не открылись</b><span id="shSub">Подождите, мы решаем, стоит ли</span></div>
+  <div class="shutter-handle"></div>
+</div>
+
+<header class="bar">
+  <button class="brand" id="brand" type="button">Не работаем</button>
+  <nav aria-label="Разделы">
+    <a href="#home" data-page="home">Главная</a>
+    <a href="#reasons" data-page="reasons">Причины</a>
+    <a href="#play" data-page="play">Развлечения</a>
+    <a href="#staff" data-page="staff">Штат</a>
+  </nav>
+  <button class="btn small party" id="party" type="button" aria-pressed="false">Корпоратив</button>
+</header>
+
+<main id="main">
+
+  <section class="page" id="home" aria-labelledby="h-home">
+    <div class="home-grid">
+      <div>
+        <h1 id="h-home">Мы не работаем. Вам тоже не советуем.</h1>
+        <p class="lede">Это сайт-вывеска. Здесь ничего не продают, не оказывают и не обещают. Часы работы ниже, сверяйтесь.</p>
+        <div class="paper">
+          <table class="hours">
+            <caption>График работы</caption>
+            <tbody id="hoursBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="hang">
+        <div class="swing" id="swing">
+          <svg class="strings" viewBox="0 0 340 112" aria-hidden="true">
+            <line x1="170" y1="12" x2="48" y2="112"></line>
+            <line x1="170" y1="12" x2="292" y2="112"></line>
+            <circle class="nail" cx="170" cy="12" r="9"></circle>
+          </svg>
+          <button class="sign on-yellow" id="sign" type="button" aria-label="Перевернуть табличку">
+            <span class="plate" id="plate">
+              <i class="hole l"></i><i class="hole r"></i>
+              <span class="face front"><span class="big">ЗАКРЫТО</span><span class="note">вернёмся никогда</span></span>
+              <span class="face back"><span class="big">ОТКРЫТО</span><span class="note">(показалось)</span></span>
+            </span>
+          </button>
+        </div>
+        <p class="aside" id="signMsg" aria-live="polite">Табличку можно перевернуть. Попробуйте.</p>
+      </div>
+    </div>
   </section>
 
-  <section>
-    <h2>Уровень продуктивности</h2>
-    <div class="bar"><i id="bar"></i></div>
-    <p class="bar-note" id="barNote">Измеряем…</p>
+  <section class="page" id="reasons" aria-labelledby="h-reasons">
+    <h2 class="title" id="h-reasons">Почему закрыто</h2>
+    <div class="stage">
+      <div>
+        <p class="lede" style="margin-top:0">Причина меняется каждый раз. Правдивой не бывает ни одна.</p>
+        <div class="actions">
+          <button class="btn" id="newReason" type="button">Новая причина</button>
+          <button class="btn alt" id="copyReason" type="button">Скопировать текст</button>
+        </div>
+      </div>
+      <div class="sheet paper pin" id="sheet">
+        <h3>Объявление</h3>
+        <p>Магазин закрыт. Причина: <span id="why"></span>.</p>
+        <p>Вернёмся <span id="when"></span>.</p>
+        <p class="sign-off">Администрация</p>
+      </div>
+    </div>
   </section>
 
-  <section id="runaway">
-    <h2>Начать работать</h2>
-    <button id="workBtn">Начать работать</button>
+  <section class="page" id="play" aria-labelledby="h-play">
+    <h2 class="title" id="h-play">Комната отдыха</h2>
+    <div class="rest">
+      <div class="lazy-wrap">
+        <button class="lazy" id="lazy" type="button">Лениться</button>
+        <p class="score"><span id="score">0</span> мин отдыха</p>
+        <p class="rate" id="rate"></p>
+        <div class="receipt paper">
+          <h3>Чек на удобства</h3>
+          <ul id="shop"></ul>
+        </div>
+      </div>
+      <div class="side">
+        <div>
+          <h3 class="play-h">Проверка бодрости</h3>
+          <button class="react" id="react" type="button">
+            Нажмите, чтобы начать<small>Когда экран станет зелёным, жмите как можно быстрее.</small>
+          </button>
+        </div>
+        <div>
+          <h3 class="play-h">Кнопка «Работать»</h3>
+          <div class="arena" id="arena">
+            <button class="btn" id="dodge" type="button">Работать</button>
+          </div>
+          <p class="arena-note" id="dodgeNote">Нажмите, если сможете. Увернулась: 0 раз.</p>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section>
-    <h2>Наша команда</h2>
-    <ul class="friends" id="friends"></ul>
+  <section class="page" id="staff" aria-labelledby="h-staff">
+    <h2 class="title" id="h-staff">Штатное расписание</h2>
+    <div class="paper">
+      <table class="roster">
+        <thead><tr><th scope="col">Сотрудник</th><th scope="col">Должность</th><th scope="col" class="pay-h">Оклад</th></tr></thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+      <form class="hire" id="hire">
+        <input id="hireName" type="text" maxlength="24" placeholder="Имя нового сотрудника" aria-label="Имя нового сотрудника" autocomplete="off">
+        <button class="btn" type="submit">Принять на работу</button>
+      </form>
+      <p class="roster-note">Новые сотрудники сохраняются только в этом браузере. Нажмите на имя, чтобы поставить печать.</p>
+    </div>
   </section>
 
-  <footer>Вы пришли на эту страницу <b id="visits">1</b>-й раз. Могли бы заняться делом.</footer>
 </main>
 
+<div class="ticker" aria-hidden="true">
+  <div class="track" id="track">
+    <span>Перерыв на обед с 9 до 18</span><span>Санитарный день</span><span>Переучёт</span><span>Технический перерыв</span><span>Ушли на склад, вернёмся не скоро</span><span>Касса не работает</span><span>Заходите завтра</span>
+  </div>
+</div>
+
+<footer>Вы зашли сюда <b id="visits">1</b>-й раз. Для закрытого магазина это много.</footer>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+
 <script>
-  // === Меняйте этот блок под себя ===
-  var FRIENDS = [
+(function () {
+  "use strict";
+
+  /* ===== Меняйте этот блок под себя ===== */
+  var STAFF = [
     { name: "Имя друга 1", role: "Директор по ничегонеделанию" },
     { name: "Имя друга 2", role: "Главный по перекурам" },
     { name: "Имя друга 3", role: "Специалист по отговоркам" }
   ];
-  var EXCUSES = [
-    "Совещание по поводу того, нужны ли совещания.",
-    "Кот наступил на кнопку, и всё сломалось.",
-    "Ждём вдохновения. Оно сказало, что придёт позже.",
-    "Идёт обновление реальности. Осталось 97%.",
-    "Все умные идеи закончились, привезут завтра.",
-    "Изучаем, как работают те, кто работает. Пока не понятно.",
-    "Дедлайн перенесён на «когда-нибудь».",
-    "Плановый технический отдых. Бессрочный."
+  var REASONS = [
+    "сотрудники изучают, как работают люди, которые работают",
+    "кот наступил на кассу, и она ушла на больничный",
+    "идёт обновление реальности, осталось 97%",
+    "все хорошие идеи закончились, новую партию привезут во вторник",
+    "переучёт: мы считаем, сколько мы не работаем",
+    "совещание о том, нужны ли совещания",
+    "санитарный день, санитарами назначены все, но никто не пришёл",
+    "дедлайн отложен до выяснения обстоятельств",
+    "ждём вдохновения, оно написало, что задержится",
+    "переезд в другое измерение, коробки уже собраны",
+    "мы вышли за хлебом в 2019 году",
+    "обед, он начался в понедельник и всё ещё идёт",
+    "отключили интернет, а что делать без него, мы не помним",
+    "технический перерыв: у техники тоже есть чувства"
   ];
-  // ==================================
+  var WHEN = [
+    "в понедельник, в какой именно, не уточняем",
+    "после обеда, но не сегодняшнего",
+    "как только, так сразу",
+    "через 15 минут, отсчёт запущен в 2019 году",
+    "когда будет настроение, оно пока на курсах",
+    "никогда, но в хорошем настроении",
+    "в следующую пятницу, если пятница согласится",
+    "после дождичка в четверг"
+  ];
+  var ROLES = [
+    "Заместитель по перекурам", "Старший специалист по лежанию", "Ведущий отдыхающий",
+    "Начальник отдела «Потом»", "Хранитель дивана", "Мастер отмазок", "Главный по чаю"
+  ];
+  /* ====================================== */
 
-  var excuse = document.getElementById("excuse");
-  document.getElementById("excuseBtn").onclick = function () {
-    excuse.textContent = EXCUSES[Math.floor(Math.random() * EXCUSES.length)];
+  var DAYS = [
+    ["Понедельник", "не работаем, день тяжёлый"],
+    ["Вторник", "не работаем, но с утра"],
+    ["Среда", "технический перерыв на весь день"],
+    ["Четверг", "санитарный день"],
+    ["Пятница", "сокращённый день, длится 0 часов"],
+    ["Суббота", "ну вы чего"],
+    ["Воскресенье", "выходной от выходных"]
+  ];
+  var SIGNMSG = [
+    "Показалось. Мы не работаем.",
+    "Это не вы, это табличка глючит.",
+    "Нет. Сегодня точно нет.",
+    "Открыто только для друзей. А вы друг? Неважно, мы закрыты.",
+    "Ровно секунду мы были открыты. Больше так не делаем.",
+    "Табличка не согласна и вернулась на место."
+  ];
+  var PAGES = { home: "Главная", reasons: "Причины", play: "Развлечения", staff: "Штат" };
+  var SUBS = ["Секунду, поднимаем рольставню", "Ключи у Людмилы, а Людмила на обеде", "Сейчас откроем, нет, показалось", "Не отходите, мы быстро (нет)"];
+
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var wait = function (ms, fn) { return setTimeout(fn, reduce ? 0 : ms); };
+  var pick = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
-
-  var bar = document.getElementById("bar"), note = document.getElementById("barNote");
-  setTimeout(function () {
-    var v = Math.floor(Math.random() * 8); // всегда почти ноль
-    bar.style.width = v + "%";
-    note.textContent = "Продуктивность: " + v + "%. Всё идёт по плану.";
-  }, 300);
-
-  var work = document.getElementById("workBtn"), box = document.getElementById("runaway");
-  function dodge() {
-    var maxX = box.clientWidth - work.offsetWidth, maxY = box.clientHeight - work.offsetHeight;
-    work.style.left = Math.floor(Math.random() * maxX) + "px";
-    work.style.top = Math.max(28, Math.floor(Math.random() * maxY)) + "px";
+  function replay(el, cls, remove) {
+    (remove || []).forEach(function (c) { el.classList.remove(c); });
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
   }
-  work.addEventListener("mouseenter", dodge);
-  work.addEventListener("touchstart", function (e) { e.preventDefault(); dodge(); }, { passive: false });
-  work.onclick = function () { document.querySelector("#runaway h2").textContent = "Не вышло. Работа сбежала."; };
+  function flash(btn, text, ms) {
+    var old = btn.getAttribute("data-label") || btn.textContent;
+    btn.setAttribute("data-label", old);
+    btn.textContent = text;
+    setTimeout(function () { btn.textContent = old; }, ms || 1400);
+  }
 
-  var list = document.getElementById("friends");
-  FRIENDS.forEach(function (f) {
-    var li = document.createElement("li");
-    var b = document.createElement("b"); b.textContent = f.name;
-    var s = document.createElement("small"); s.textContent = f.role;
-    li.appendChild(b); li.appendChild(s); list.appendChild(li);
+  /* ===== Конфетти ===== */
+  var cv = $("#fx"), cx = cv.getContext("2d"), parts = [], raf = 0;
+  var COLORS = ["#ffd21f", "#e0301e", "#fbfaf5", "#12b76a", "#0e1330"];
+  function sizeCanvas() { cv.width = innerWidth; cv.height = innerHeight; }
+  sizeCanvas();
+  addEventListener("resize", sizeCanvas);
+  function burst(x, y, n) {
+    if (reduce) return;
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2, v = 4 + Math.random() * 9;
+      parts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 6, r: Math.random() * 6.28,
+        vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 7, h: 4 + Math.random() * 6, c: pick(COLORS), life: 80 + Math.random() * 50 });
+    }
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+  function loop() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+      if (p.life <= 0 || p.y > cv.height + 20) { parts.splice(i, 1); continue; }
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r);
+      cx.fillStyle = p.c; cx.globalAlpha = Math.min(1, p.life / 30);
+      cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); cx.restore();
+    }
+    raf = parts.length ? requestAnimationFrame(loop) : 0;
+  }
+
+  /* ===== Рольставни и страницы ===== */
+  var shutter = $("#shutter"), current = "home", busy = false;
+  function closeShutter(label, sub) {
+    $("#shLabel").textContent = label;
+    $("#shSub").textContent = sub;
+    shutter.classList.remove("up");
+    shutter.classList.add("down");
+  }
+  function openShutter() { shutter.classList.remove("down"); shutter.classList.add("up"); }
+
+  var enter = {
+    home: function () {
+      replay($("#swing"), "enter", ["kick"]);
+      markToday();
+    },
+    reasons: function () { replay($("#sheet"), "pin", ["tear"]); }
+  };
+  function show(page, skipEnter) {
+    $$(".page").forEach(function (p) { p.classList.toggle("on", p.id === page); });
+    $$(".bar nav a").forEach(function (a) {
+      var on = a.getAttribute("data-page") === page;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    current = page;
+    window.scrollTo(0, 0);
+    document.title = page === "home" ? "Не работаем" : PAGES[page] + ": не работаем";
+    if (!skipEnter && enter[page]) enter[page]();
+  }
+  function go(page, noPush) {
+    if (!PAGES[page] || busy || page === current) return;
+    busy = true;
+    closeShutter(PAGES[page], pick(SUBS));
+    wait(950, function () {
+      show(page, true);
+      if (!noPush) { try { history.pushState({ p: page }, "", "#" + page); } catch (e) {} }
+      wait(250, function () {
+        openShutter();
+        wait(350, function () { if (enter[page]) enter[page](); });
+        wait(900, function () { busy = false; });
+      });
+    });
+  }
+  $$(".bar nav a").forEach(function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); go(a.getAttribute("data-page")); });
+  });
+  $("#brand").addEventListener("click", function () { go("home"); });
+  addEventListener("popstate", function () {
+    var h = location.hash.slice(1);
+    go(PAGES[h] ? h : "home", true);
   });
 
-  try {
-    var n = parseInt(localStorage.getItem("visits") || "0", 10) + 1;
-    localStorage.setItem("visits", n);
-    document.getElementById("visits").textContent = n;
-  } catch (e) {}
+  /* ===== График работы ===== */
+  var hoursBody = $("#hoursBody");
+  DAYS.forEach(function (d) {
+    var tr = document.createElement("tr");
+    var th = document.createElement("th"); th.scope = "row"; th.textContent = d[0];
+    var td = document.createElement("td"); td.textContent = d[1];
+    tr.appendChild(th); tr.appendChild(td); hoursBody.appendChild(tr);
+  });
+  function markToday() {
+    var i = (new Date().getDay() + 6) % 7;
+    $$("tr", hoursBody).forEach(function (tr, k) { tr.classList.toggle("today", k === i); });
+  }
+  markToday();
+
+  /* ===== Табличка ===== */
+  var plate = $("#plate"), swing = $("#swing"), signMsg = $("#signMsg"), signBusy = false;
+  function kick() { replay(swing, "kick", ["enter"]); }
+  $("#sign").addEventListener("click", function () {
+    if (signBusy) return;
+    signBusy = true;
+    plate.classList.add("flip");
+    kick();
+    signMsg.textContent = pick(SIGNMSG);
+    wait(1900, function () {
+      plate.classList.remove("flip");
+      kick();
+      wait(900, function () { signBusy = false; });
+    });
+  });
+
+  /* ===== Причины ===== */
+  var sheet = $("#sheet"), sheetBusy = false;
+  function setReason() { $("#why").textContent = pick(REASONS); $("#when").textContent = pick(WHEN); }
+  setReason();
+  $("#newReason").addEventListener("click", function () {
+    if (sheetBusy) return;
+    sheetBusy = true;
+    if (reduce) { setReason(); sheetBusy = false; return; }
+    sheet.classList.remove("pin");
+    sheet.classList.add("tear");
+    sheet.addEventListener("animationend", function done() {
+      sheet.removeEventListener("animationend", done);
+      setReason();
+      sheet.classList.remove("tear");
+      void sheet.offsetWidth;
+      sheet.classList.add("pin");
+      sheetBusy = false;
+    });
+  });
+  $("#copyReason").addEventListener("click", function () {
+    var btn = this;
+    var t = "Магазин закрыт. Причина: " + $("#why").textContent + ". Вернёмся " + $("#when").textContent + ".";
+    try {
+      navigator.clipboard.writeText(t).then(function () { flash(btn, "Скопировано"); }, function () { flash(btn, "Не вышло, выделите вручную", 2200); });
+    } catch (e) { flash(btn, "Не вышло, выделите вручную", 2200); }
+  });
+
+  /* ===== Лень-кликер ===== */
+  var ITEMS = [
+    { name: "Подушка под спину", desc: "+1 минута за нажатие", base: 15, click: 1, sec: 0 },
+    { name: "Кот на коленях", desc: "+1 минута в секунду", base: 60, click: 0, sec: 1 },
+    { name: "Отпуск за свой счёт", desc: "+8 минут в секунду", base: 400, click: 0, sec: 8 }
+  ];
+  var S = store.get("lazy", null);
+  if (!S || typeof S.n !== "number" || !S.items || S.items.length !== ITEMS.length) S = { n: 0, items: [0, 0, 0] };
+  var fmt = function (n) { return Math.floor(n).toLocaleString("ru-RU"); };
+  var cost = function (i) { return Math.round(ITEMS[i].base * Math.pow(1.35, S.items[i])); };
+  function perClick() { var c = 1; ITEMS.forEach(function (it, i) { c += it.click * S.items[i]; }); return c; }
+  function perSec() { var c = 0; ITEMS.forEach(function (it, i) { c += it.sec * S.items[i]; }); return c; }
+  var shop = $("#shop"), shopBtns = [];
+  ITEMS.forEach(function (it, i) {
+    var li = document.createElement("li");
+    var b = document.createElement("b"); b.textContent = it.name;
+    var small = document.createElement("small");
+    var btn = document.createElement("button"); btn.type = "button"; btn.className = "btn small";
+    btn.addEventListener("click", function () {
+      var c = cost(i);
+      if (S.n < c) return;
+      S.n -= c; S.items[i]++; store.set("lazy", S); renderLazy();
+    });
+    li.appendChild(b); li.appendChild(small); li.appendChild(btn); shop.appendChild(li);
+    shopBtns.push({ small: small, btn: btn });
+  });
+  function renderLazy() {
+    $("#score").textContent = fmt(S.n);
+    $("#rate").textContent = "За нажатие: " + perClick() + ". В секунду: " + perSec() + ".";
+    ITEMS.forEach(function (it, i) {
+      shopBtns[i].small.textContent = it.desc + ". Куплено: " + S.items[i] + ".";
+      shopBtns[i].btn.textContent = "Взять за " + fmt(cost(i));
+      shopBtns[i].btn.disabled = S.n < cost(i);
+    });
+  }
+  renderLazy();
+  $("#lazy").addEventListener("click", function () {
+    var inc = perClick(); S.n += inc; renderLazy();
+    var r = this.getBoundingClientRect();
+    var f = document.createElement("span");
+    f.className = "float"; f.textContent = "+" + inc;
+    f.style.left = (r.left + r.width / 2 + (Math.random() - .5) * 120) + "px";
+    f.style.top = (r.top + 20) + "px";
+    f.addEventListener("animationend", function () { f.remove(); });
+    document.body.appendChild(f);
+  });
+  setInterval(function () { var s = perSec(); if (s) S.n += s; renderLazy(); store.set("lazy", S); }, 1000);
+
+  /* ===== Проверка бодрости ===== */
+  var react = $("#react"), rState = "idle", rT0 = 0, rTimer = 0, best = store.get("best", 0);
+  function rSet(cls, main, sub) {
+    react.className = "react " + cls;
+    react.textContent = main;
+    var s = document.createElement("small"); s.textContent = sub; react.appendChild(s);
+  }
+  react.addEventListener("click", function () {
+    if (rState === "idle" || rState === "done") {
+      rState = "wait";
+      rSet("wait", "Ждите зелёный", "Не нажимайте раньше времени.");
+      rTimer = setTimeout(function () {
+        rState = "go"; rT0 = performance.now(); rSet("go", "Жмите!", "");
+      }, 1000 + Math.random() * 2500);
+    } else if (rState === "wait") {
+      clearTimeout(rTimer); rState = "done";
+      rSet("early", "Рано", "Нажмите, чтобы попробовать ещё раз.");
+    } else if (rState === "go") {
+      var ms = Math.round(performance.now() - rT0); rState = "done";
+      var verdict = ms < 200 ? "Подозрительно бодро. Вы точно не работаете?" : ms < 300 ? "Хорошо для отдыхающего." : ms < 450 ? "Идеальная форма расслабленности." : "Вы спали? Уважаем.";
+      var rec = "";
+      if (!best || ms < best) { best = ms; store.set("best", best); rec = " Новый рекорд."; burst(innerWidth / 2, innerHeight / 2, 70); }
+      rSet("idle", ms + " мс", verdict + rec + " Лучший результат: " + best + " мс. Нажмите, чтобы повторить.");
+    }
+  });
+
+  /* ===== Кнопка «Работать» ===== */
+  var arena = $("#arena"), dodgeBtn = $("#dodge"), dodges = 0, dodgeNote = $("#dodgeNote");
+  function dodge() {
+    var mx = Math.max(1, arena.clientWidth - dodgeBtn.offsetWidth - 8);
+    var my = Math.max(1, arena.clientHeight - dodgeBtn.offsetHeight - 8);
+    dodgeBtn.style.left = Math.floor(4 + Math.random() * mx) + "px";
+    dodgeBtn.style.top = Math.floor(4 + Math.random() * my) + "px";
+    dodges++;
+    dodgeNote.textContent = "Нажмите, если сможете. Увернулась: " + dodges + " раз.";
+  }
+  dodgeBtn.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") dodge(); });
+  dodgeBtn.addEventListener("touchstart", function (e) { e.preventDefault(); dodge(); }, { passive: false });
+  dodgeBtn.addEventListener("click", function () {
+    dodgeNote.textContent = "Получилось. Вас уволили за трудолюбие.";
+    var r = dodgeBtn.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top, 60);
+  });
+
+  /* ===== Штат ===== */
+  var extra = store.get("staff", []);
+  if (!Array.isArray(extra)) extra = [];
+  var rosterBody = $("#rosterBody");
+  function addRow(p, stamped) {
+    var tr = document.createElement("tr");
+    var td1 = document.createElement("td");
+    var nm = document.createElement("button"); nm.type = "button"; nm.className = "nm"; nm.textContent = p.name;
+    nm.addEventListener("click", function () { tr.classList.toggle("stamped"); });
+    td1.appendChild(nm);
+    var td2 = document.createElement("td"); td2.className = "role"; td2.textContent = p.role;
+    var st2 = document.createElement("span"); st2.className = "stamp"; st2.textContent = "Принят"; td2.appendChild(st2);
+    var td3 = document.createElement("td"); td3.className = "pay"; td3.textContent = "0 ₽ и печеньки";
+    var st3 = document.createElement("span"); st3.className = "stamp"; st3.textContent = "Принят"; td3.appendChild(st3);
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    rosterBody.appendChild(tr);
+    if (stamped) tr.classList.add("stamped");
+  }
+  STAFF.concat(extra).forEach(function (p) { addRow(p, false); });
+  $("#hire").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("#hireName"), name = input.value.trim();
+    if (!name) return;
+    var p = { name: name, role: pick(ROLES) };
+    extra.push(p); store.set("staff", extra);
+    addRow(p, true);
+    input.value = "";
+  });
+
+  /* ===== Корпоратив ===== */
+  var partyTimer = 0, partyBtn = $("#party");
+  partyBtn.addEventListener("click", function () {
+    var on = document.body.classList.toggle("party");
+    partyBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    partyBtn.textContent = on ? "Корпоратив идёт" : "Корпоратив";
+    clearInterval(partyTimer);
+    if (on) {
+      burst(innerWidth / 2, innerHeight * .4, 120);
+      partyTimer = setInterval(function () { burst(Math.random() * innerWidth, innerHeight * .25, 40); }, 900);
+    }
+  });
+
+  /* ===== Пасхалка: запретное слово ===== */
+  var buf = "";
+  addEventListener("keydown", function (e) {
+    var t = e.target;
+    if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+    if (!e.key || e.key.length !== 1) return;
+    buf = (buf + e.key.toLowerCase()).slice(-6);
+    if ((buf === "работа" || buf === "hf,jnf") && !busy) {
+      buf = ""; busy = true;
+      closeShutter("Это слово здесь не говорят", "Держите себя в руках");
+      wait(1900, function () { openShutter(); wait(900, function () { busy = false; }); });
+    }
+  });
+
+  /* ===== Мелочи ===== */
+  var trackEl = $("#track");
+  trackEl.innerHTML += trackEl.innerHTML;
+  var origTitle = document.title;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { origTitle = document.title; document.title = "Вернитесь, мы скучаем (но не работаем)"; }
+    else document.title = origTitle;
+  });
+  var v = store.get("visits", 0) + 1; store.set("visits", v);
+  $("#visits").textContent = v;
+
+  /* ===== Старт ===== */
+  var startHash = location.hash.slice(1);
+  var startPage = PAGES[startHash] ? startHash : "home";
+  show(startPage, true);
+  var t0 = Date.now();
+  function begin() {
+    var left = Math.max(0, 1700 - (Date.now() - t0));
+    wait(left, function () {
+      openShutter();
+      wait(350, function () { if (enter[startPage]) enter[startPage](); });
+      wait(900, function () { document.body.classList.remove("loading"); });
+    });
+  }
+  if (document.readyState === "complete") begin(); else addEventListener("load", begin);
+})();
 </script>
 </body>
 </html>

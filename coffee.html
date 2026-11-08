@@ -128,7 +128,8 @@
   <b>ЛКМ</b> взять, перенести, зажать кнопку<br>
   <b>ПКМ</b> повернуть холдер, прижать темпер<br>
   <b>Колесо</b> наклонить пакет или питчер<br>
-  <b>Круги мышью</b> мешать ложкой
+  <b>Круги мышью</b> мешать ложкой<br>
+  <b>Рывок и отпустить</b> бросить предмет
 </div>
 <div class="hud" id="meter" hidden><div class="lbl" id="mLbl"></div><div class="bar"><i class="zone" id="mZone"></i><i class="fill" id="mFill"></i><i class="mark" id="mMark" hidden></i></div></div>
 <div class="hud" id="hint">Наведите на предметы, чтобы узнать, что они делают.</div>
@@ -150,7 +151,8 @@
       <li><b>Левая кнопка:</b> взять и перенести предмет, зажать кнопку на кофемашине или кофемолке.</li>
       <li><b>Правая кнопка:</b> повернуть холдер в группе (зажать и вести мышью), прижать темпер.</li>
       <li><b>Колесо мыши:</b> наклонить пакет молока или питчер, чтобы налить.</li>
-      <li><b>Ложка в чашке:</b> зажмите и водите мышью по кругу.</li>
+      <li><b>Ложка в кружке:</b> зажмите и водите мышью по кругу.</li>
+      <li><b>Бросок:</b> резко дёрните мышью и отпустите. Улетевшее за прилавок вернётся через 2 секунды. Сахар можно закинуть в кружку прямо броском.</li>
     </ul>
     <p>Подсказка внизу экрана всегда говорит, что делать дальше.</p>
     <label>Имя бариста
@@ -196,6 +198,7 @@ const DB_URL = "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.a
 const DIRECTOR = "Никитка";
 const ORDERS_PER_SHIFT = 5;
 const PATIENCE = 180;
+const RESPAWN_MS = 2000;
 
 const $ = (s) => document.querySelector(s);
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -218,6 +221,8 @@ function toast(msg) {
   const t = $("#toast"); t.textContent = msg; t.classList.add("on");
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2600);
 }
+let warnT = 0;
+function warn(msg) { const n = performance.now(); if (n - warnT > 2500) { warnT = n; toast(msg); } }
 function plural(n, a, b, c) { const m = Math.abs(n) % 100, k = m % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; }
 
 /* ================= Звук ================= */
@@ -242,7 +247,7 @@ class Loop {
     const f = actx.createBiquadFilter(); f.type = this.type; f.frequency.value = this.freq; f.Q.value = this.q;
     const g = actx.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(this.vol, actx.currentTime + .08);
     src.connect(f); f.connect(g); g.connect(actx.destination); src.start();
-    this.src = src; this.g = g; this.f = f; this.on = true;
+    this.src = src; this.g = g; this.on = true;
   }
   stop() {
     if (!this.on) return;
@@ -263,12 +268,22 @@ function tone(freq, dur, type = "sine", vol = .25, slide = 0) {
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
   o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + .02);
 }
+function noiseHit(dur, freq, vol) {
+  if (!audio()) return;
+  const src = actx.createBufferSource(); src.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = .8;
+  const g = actx.createGain(), t = actx.currentTime;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(actx.destination); src.start(t, Math.random()); src.stop(t + dur);
+}
 const sClick = () => tone(1400, .05, "square", .08);
 const sClunk = () => { tone(140, .18, "triangle", .35, -60); tone(900, .04, "square", .06); };
 const sPlop = () => tone(700, .16, "sine", .25, -450);
 const sThunk = () => { tone(90, .25, "sine", .5, -40); tone(300, .08, "triangle", .15); };
 const sClink = () => tone(2400 + Math.random() * 400, .12, "sine", .1);
 const sDing = () => { tone(1320, .5, "sine", .2); setTimeout(() => tone(1760, .6, "sine", .18), 120); };
+const sKnock = (v) => { const k = clamp(v / 14, .05, 1); tone(160 + Math.random() * 80, .1, "triangle", .3 * k, -60); noiseHit(.06, 1800, .15 * k); };
+const sCrash = () => { noiseHit(.5, 3200, .5); noiseHit(.3, 900, .4); tone(1900, .25, "triangle", .12, -800); };
 
 /* ================= Сцена ================= */
 const canvas = $("#c");
@@ -286,7 +301,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1d2fd0);
 const camera = new THREE.PerspectiveCamera(42, 1, .1, 100);
 const CAM_BASE = new THREE.Vector3(0, 8.6, 10.6), CAM_LOOK = new THREE.Vector3(0, .5, -.3);
-let camDist = 1, mouseNX = 0, mouseNY = 0, camX = 0;
+let camDist = 1, mouseNX = 0, camX = 0;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x2a3aa8, 1.25));
 const sun = new THREE.DirectionalLight(0xffffff, 2.1);
@@ -298,6 +313,7 @@ scene.add(sun);
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: .6, metalness: 0 }, o));
 const STEEL = M(0xd3dae4, { metalness: .35, roughness: .3 });
+const STEEL2 = () => new THREE.MeshStandardMaterial({ color: 0xd3dae4, metalness: .35, roughness: .3, side: THREE.DoubleSide });
 const INK = M(0x0e1330, { roughness: .5 });
 const CHALK = M(0xfbfaf5, { roughness: .45 });
 function mesh(geo, mat, x = 0, y = 0, z = 0, parent = scene) {
@@ -328,27 +344,22 @@ function label(text, x, y, z, w = .7, h = .3, bg, fg) {
 mesh(new THREE.BoxGeometry(13, .4, 6.4), M(0xc98a55, { roughness: .7 }), 0, -.2, -.1);
 mesh(new THREE.BoxGeometry(13, 3, .2), M(0x8a4b2a), 0, -1.9, 3.05);
 mesh(new THREE.BoxGeometry(13, .12, .16), INK, 0, -.02, 3.1);
+const COUNTER = { x0: -6.5, x1: 6.5, z0: -3.3, z1: 3.1 };
 
 /* ================= Кофемашина ================= */
 const MACH = new THREE.Vector3(.6, 0, -1.95);
 mesh(new THREE.BoxGeometry(4.2, 3.4, 2.2), M(0xffd21f, { roughness: .4 }), MACH.x, 1.7, MACH.z);
 mesh(new THREE.BoxGeometry(4.3, .14, 2.3), INK, MACH.x, 3.45, MACH.z);
 mesh(new THREE.BoxGeometry(4.0, .86, .06), INK, MACH.x, 2.9, -.86);
-mesh(new THREE.BoxGeometry(.5, .28, .4), STEEL, 0, 2.3, -.68); // шея группы
-const groupHead = mesh(new THREE.CylinderGeometry(.46, .5, .32, 28), STEEL, 0, 2.2, -.5);
-mesh(new THREE.BoxGeometry(1.9, .16, 1.0), INK, .2, .08, -.4); // поддон
+mesh(new THREE.BoxGeometry(.5, .28, .4), STEEL, 0, 2.3, -.68);
+mesh(new THREE.CylinderGeometry(.46, .5, .32, 28), STEEL, 0, 2.2, -.5);
+mesh(new THREE.BoxGeometry(1.9, .16, 1.0), INK, .2, .08, -.4);
 for (let i = 0; i < 6; i++) mesh(new THREE.BoxGeometry(1.7, .02, .05), STEEL, .2, .17, -.8 + i * .16);
-// Носик горячей воды
 mesh(new THREE.CylinderGeometry(.05, .05, .7, 10), STEEL, .78, 1.75, -.68).rotation.x = .5;
 const WATER_TIP = new THREE.Vector3(.78, 1.42, -.52);
-// Паровая трубка и подставка
-{
-  const wand = mesh(new THREE.CylinderGeometry(.05, .05, 1.45, 10), STEEL, 2.26, 1.9, -.52);
-  wand.rotation.x = .38;
-}
+mesh(new THREE.CylinderGeometry(.05, .05, 1.45, 10), STEEL, 2.26, 1.9, -.52).rotation.x = .38;
 const STEAM_TIP = new THREE.Vector3(2.2, 1.22, -.25);
 mesh(new THREE.BoxGeometry(.9, .5, .9), INK, 2.2, .25, -.25);
-// Кнопки на панели
 function button(x, color) {
   const b = mesh(new THREE.CylinderGeometry(.2, .2, .14, 24), M(color, { roughness: .35 }), x, 2.95, -.82);
   b.rotation.x = Math.PI / 2; return b;
@@ -360,7 +371,6 @@ steamKnob.rotation.x = Math.PI / 2;
 label("КОФЕ", -.9, 2.68, -.82, .62, .18, "#0e1330", "#fbfaf5");
 label("ВОДА", -.2, 2.68, -.82, .62, .18, "#0e1330", "#fbfaf5");
 label("ПАР", 2.1, 2.68, -.82, .5, .18, "#0e1330", "#fbfaf5");
-// Манометр
 mesh(new THREE.CylinderGeometry(.32, .32, .06, 32), CHALK, .8, 2.95, -.8).rotation.x = Math.PI / 2;
 const needle = mesh(new THREE.BoxGeometry(.04, .26, .02), M(0xe0301e), .8, 2.95, -.76);
 needle.geometry.translate(0, .1, 0);
@@ -390,25 +400,26 @@ const SERVE = new THREE.Vector3(4.4, 0, 1.75);
   const m = new THREE.Mesh(new THREE.BoxGeometry(1.7, .06, 1.3), new THREE.MeshStandardMaterial({ map: textTex("ВЫДАЧА", 256, 196, "#ffd21f", "#0e1330", 70) }));
   m.position.set(SERVE.x, .03, SERVE.z); m.receiveShadow = true; scene.add(m);
 }
-// Стопка чашек (декор)
-function cupShell(parent, withHandle = true) {
-  const g = new THREE.Group();
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(.42, .32, .85, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0xfbfaf5, roughness: .35, side: THREE.DoubleSide }));
-  wall.position.y = .425; wall.castShadow = wall.receiveShadow = true; g.add(wall);
-  const bottom = new THREE.Mesh(new THREE.CircleGeometry(.32, 24), CHALK); bottom.rotation.x = -Math.PI / 2; bottom.position.y = .01; g.add(bottom);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(.42, .025, 8, 32), CHALK); rim.rotation.x = Math.PI / 2; rim.position.y = .85; g.add(rim);
-  if (withHandle) {
-    const h = new THREE.Mesh(new THREE.TorusGeometry(.18, .05, 10, 20, Math.PI * 1.3), CHALK);
-    h.position.set(.46, .45, 0); h.rotation.z = -Math.PI * .65; h.castShadow = true; g.add(h);
-  }
-  parent.add(g); return g;
-}
-for (let i = 0; i < 3; i++) { const s = cupShell(scene); s.position.set(-5.55, i * .22, .55); }
+
+/* Коллизии с оборудованием: коробки (на крышку можно приземлиться) и цилиндр кофемолки */
+const BOXES = [
+  { x0: -1.5, x1: 2.7, z0: -3.05, z1: -.85, top: 3.52 },   // кофемашина
+  { x0: -.75, x1: 1.15, z0: -.9, z1: .1, top: .17 },       // поддон
+  { x0: 1.75, x1: 2.65, z0: -.7, z1: .2, top: .5 },        // подставка под питчер
+  { x0: -5.5, x1: -4.5, z0: -1.35, z1: -.45, top: .7 },    // нок-бокс
+  { x0: -4.15, x1: -2.85, z0: -1.2, z1: 0, top: .1 },      // подставка кофемолки
+  { x0: -2.4, x1: -1.2, z0: .1, z1: 1.3, top: .08 },       // коврик темпера
+  { x0: 3.55, x1: 5.25, z0: 1.1, z1: 2.4, top: .06 }       // выдача
+];
+const GRINDER_CYL = { x: GRIND.x, z: GRIND.z, r: .8, top: 3.8 };
 
 /* ================= Перетаскиваемые предметы ================= */
 const draggables = [];
-function makeDraggable(group, kind, name, home) {
-  group.userData = { kind, name, home: home.clone(), target: home.clone(), tilt: 0 };
+function makeDraggable(group, kind, name, home, r = .4) {
+  group.userData = Object.assign(group.userData || {}, {
+    kind, name, home: home.clone(), target: home.clone(), tilt: 0,
+    mode: "free", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r, rest: 0
+  });
   group.position.copy(home);
   group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(group); draggables.push(group); return group;
@@ -416,8 +427,7 @@ function makeDraggable(group, kind, name, home) {
 // Холдер
 const pfObj = new THREE.Group();
 {
-  const basket = new THREE.Mesh(new THREE.CylinderGeometry(.42, .38, .28, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0xd3dae4, metalness: .35, roughness: .3, side: THREE.DoubleSide }));
-  basket.position.y = .14; pfObj.add(basket);
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(.42, .38, .28, 28, 1, true), STEEL2()); basket.position.y = .14; pfObj.add(basket);
   const b2 = new THREE.Mesh(new THREE.CircleGeometry(.38, 24), STEEL); b2.rotation.x = -Math.PI / 2; b2.position.y = .01; pfObj.add(b2);
   const ears = new THREE.Mesh(new THREE.BoxGeometry(1.0, .06, .14), STEEL); ears.position.y = .24; pfObj.add(ears);
   const handle = new THREE.Mesh(new THREE.CylinderGeometry(.08, .1, 1.1, 14), INK);
@@ -425,7 +435,7 @@ const pfObj = new THREE.Group();
 }
 const puck = new THREE.Mesh(new THREE.CylinderGeometry(.36, .36, 1, 24), M(0x3a2010, { roughness: 1 }));
 puck.position.y = .02; puck.visible = false; pfObj.add(puck);
-makeDraggable(pfObj, "portafilter", "Холдер", new THREE.Vector3(-3.1, 0, 1.2));
+makeDraggable(pfObj, "portafilter", "Холдер", new THREE.Vector3(-3.1, 0, 1.2), .45);
 // Темпер
 const tamperObj = new THREE.Group();
 {
@@ -433,45 +443,60 @@ const tamperObj = new THREE.Group();
   const h = new THREE.Mesh(new THREE.CylinderGeometry(.13, .2, .6, 16), M(0x8a4b2a)); h.position.y = .46; tamperObj.add(h);
   const k = new THREE.Mesh(new THREE.SphereGeometry(.22, 16, 12), M(0x8a4b2a)); k.position.y = .82; tamperObj.add(k);
 }
-makeDraggable(tamperObj, "tamper", "Темпер", new THREE.Vector3(-1.8, 0, 1.95));
-// Чашка
-const cupObj = new THREE.Group();
-cupShell(cupObj);
-const liquid = new THREE.Mesh(new THREE.CylinderGeometry(.4, .31, 1, 28), new THREE.MeshStandardMaterial({ color: 0x2a160b, roughness: .25 }));
-liquid.visible = false; cupObj.add(liquid);
-const foam = new THREE.Mesh(new THREE.CircleGeometry(.39, 28), M(0xf6ecdc, { roughness: .9 }));
-foam.rotation.x = -Math.PI / 2; foam.visible = false; cupObj.add(foam);
-const CUP_HOME = new THREE.Vector3(-4.2, 0, 2.0);
-makeDraggable(cupObj, "cup", "Чашка", CUP_HOME);
+makeDraggable(tamperObj, "tamper", "Темпер", new THREE.Vector3(-1.8, 0, 1.95), .35);
+// Кружки
+const STACK = new THREE.Vector3(-5.2, 0, 1.3);
+const NEST = .22;
+const cups = [];
+function freshCupState() {
+  return { slot: "free", coffee: 0, water: 0, milk: 0, milkTemp: 0, sugar: 0, stirs: 0, spilled: false, extract: 1, extractNote: "" };
+}
+function makeCup(i) {
+  const g = new THREE.Group();
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(.42, .32, .85, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0xfbfaf5, roughness: .35, side: THREE.DoubleSide }));
+  wall.position.y = .425; g.add(wall);
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(.32, 24), CHALK); bottom.rotation.x = -Math.PI / 2; bottom.position.y = .01; g.add(bottom);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.42, .025, 8, 32), CHALK); rim.rotation.x = Math.PI / 2; rim.position.y = .85; g.add(rim);
+  const h = new THREE.Mesh(new THREE.TorusGeometry(.18, .05, 10, 20, Math.PI * 1.3), CHALK);
+  h.position.set(.46, .45, 0); h.rotation.z = -Math.PI * .65; g.add(h);
+  const liq = new THREE.Mesh(new THREE.CylinderGeometry(.4, .31, 1, 28), new THREE.MeshStandardMaterial({ color: 0x2a160b, roughness: .25 }));
+  liq.visible = false; g.add(liq);
+  const fm = new THREE.Mesh(new THREE.CircleGeometry(.39, 28), M(0xf6ecdc, { roughness: .9 }));
+  fm.rotation.x = -Math.PI / 2; fm.visible = false; g.add(fm);
+  g.userData = { liq, fm, st: freshCupState() };
+  const home = STACK.clone().add(new THREE.Vector3(0, i * NEST, 0));
+  makeDraggable(g, "cup", "Кружка", STACK, .42);
+  g.position.copy(home);
+  cups.push(g); return g;
+}
+for (let i = 0; i < 4; i++) makeCup(i);
 // Пакет молока
 const cartonObj = new THREE.Group();
 {
   const body = new THREE.Mesh(new THREE.BoxGeometry(.55, 1.1, .55), CHALK); body.position.y = .55; cartonObj.add(body);
   const band = new THREE.Mesh(new THREE.BoxGeometry(.57, .35, .57), M(0x3fa9f5)); band.position.y = .55; cartonObj.add(band);
-  const roof = new THREE.Mesh(new THREE.CylinderGeometry(.0, .39, .3, 4, 1), CHALK); roof.rotation.y = Math.PI / 4; roof.position.y = 1.25; cartonObj.add(roof);
+  const roof = new THREE.Mesh(new THREE.CylinderGeometry(0, .39, .3, 4, 1), CHALK); roof.rotation.y = Math.PI / 4; roof.position.y = 1.25; cartonObj.add(roof);
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .08, 12), M(0xe0301e)); cap.position.set(-.16, 1.3, 0); cartonObj.add(cap);
 }
-makeDraggable(cartonObj, "carton", "Пакет молока", new THREE.Vector3(3.6, 0, .95));
+makeDraggable(cartonObj, "carton", "Пакет молока", new THREE.Vector3(3.6, 0, .95), .38);
 // Питчер
 const pitObj = new THREE.Group();
 {
-  const w = new THREE.Mesh(new THREE.CylinderGeometry(.3, .38, .75, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0xd3dae4, metalness: .35, roughness: .3, side: THREE.DoubleSide }));
-  w.position.y = .375; pitObj.add(w);
+  const w = new THREE.Mesh(new THREE.CylinderGeometry(.3, .38, .75, 28, 1, true), STEEL2()); w.position.y = .375; pitObj.add(w);
   const b = new THREE.Mesh(new THREE.CircleGeometry(.38, 24), STEEL); b.rotation.x = -Math.PI / 2; b.position.y = .01; pitObj.add(b);
   const spout = new THREE.Mesh(new THREE.ConeGeometry(.1, .2, 8), STEEL); spout.rotation.z = Math.PI / 2; spout.position.set(-.33, .72, 0); pitObj.add(spout);
   const h = new THREE.Mesh(new THREE.TorusGeometry(.2, .05, 10, 20, Math.PI), STEEL); h.position.set(.36, .4, 0); h.rotation.z = -Math.PI / 2; pitObj.add(h);
 }
 const pitMilk = new THREE.Mesh(new THREE.CylinderGeometry(.3, .36, 1, 24), M(0xfbf6ec, { roughness: .8 }));
 pitMilk.visible = false; pitObj.add(pitMilk);
-makeDraggable(pitObj, "pitcher", "Питчер", new THREE.Vector3(2.9, 0, 1.8));
+makeDraggable(pitObj, "pitcher", "Питчер", new THREE.Vector3(2.9, 0, 1.8), .4);
 // Ложка
 const spoonObj = new THREE.Group();
 {
   const h = new THREE.Mesh(new THREE.BoxGeometry(.08, .04, 1.1), STEEL); h.position.z = .5; spoonObj.add(h);
   const bowl = new THREE.Mesh(new THREE.SphereGeometry(.14, 14, 10), STEEL); bowl.scale.set(1, .35, 1.4); spoonObj.add(bowl);
 }
-const SPOON_HOME = new THREE.Vector3(5.3, .05, .3);
-makeDraggable(spoonObj, "spoon", "Ложка", SPOON_HOME);
+makeDraggable(spoonObj, "spoon", "Ложка", new THREE.Vector3(5.3, .02, .3), .25);
 spoonObj.rotation.y = .5;
 // Сахарница
 const sugarBowl = new THREE.Group();
@@ -485,6 +510,7 @@ const sugarBowl = new THREE.Group();
 sugarBowl.position.set(4.5, 0, -.5); sugarBowl.traverse((o) => { if (o.isMesh) o.castShadow = true; }); scene.add(sugarBowl);
 sugarBowl.userData = { kind: "sugarbowl", name: "Сахарница" };
 label("САХАР", 4.5, .25, -.02, .6, .18, "#0e1330", "#fbfaf5");
+BOXES.push({ x0: 4.0, x1: 5.0, z0: -1.0, z1: 0, top: .5 });
 
 /* ================= Зоны ================= */
 const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd21f, transparent: true, opacity: .9 });
@@ -495,27 +521,28 @@ function zone(id, kind, pos, radius = .55) {
   const z = { id, kind, pos: pos.clone(), ring, ok: () => true }; zones.push(z); return z;
 }
 const zGrinder = zone("grinder", "portafilter", new THREE.Vector3(GRIND.x, .1, -.55));
-const zTamp = zone("tamp", "portafilter", new THREE.Vector3(TAMP.x, .08, TAMP.z));
-const zGroup = zone("group", "portafilter", new THREE.Vector3(0, 1.75, -.5));
+zone("tamp", "portafilter", new THREE.Vector3(TAMP.x, .08, TAMP.z));
+zone("group", "portafilter", new THREE.Vector3(0, 1.75, -.5));
 const zKnock = zone("knock", "portafilter", new THREE.Vector3(KNOCK.x, .72, KNOCK.z), .6);
-const zTray = zone("tray", "cup", new THREE.Vector3(0, .16, -.4));
+const zTray = zone("tray", "cup", new THREE.Vector3(0, .17, -.4));
 const zServe = zone("serve", "cup", new THREE.Vector3(SERVE.x, .06, SERVE.z), .7);
-const zSteam = zone("steam", "pitcher", new THREE.Vector3(2.2, .5, -.25));
+zone("steam", "pitcher", new THREE.Vector3(2.2, .5, -.25));
 const zTamper = zone("tamperOn", "tamper", new THREE.Vector3(TAMP.x, .36, TAMP.z), .45);
-zTamper.ok = () => pf.slot === "tamp" && pf.grounds > 1 && !pf.tamped;
-zKnock.ok = () => pf.grounds > 0;
 
 /* ================= Состояние ================= */
-const pf = { slot: "free", grounds: 0, tamped: false, tampQ: 0, used: false, angle: 0, locked: false, brewed: 0 };
-const cup = {};
+const pf = { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 };
 const pit = { slot: "free", milk: 0, temp: 6 };
 let tamperOn = false;
-function resetCup() {
-  Object.assign(cup, { slot: "free", coffee: 0, water: 0, milk: 0, milkTemp: 0, sugar: 0, stirs: 0, spilled: false, extract: 1, extractNote: "", spills: 0 });
-  cupObj.userData.target.copy(CUP_HOME); cupObj.position.copy(CUP_HOME).add(new THREE.Vector3(0, 2, 0));
-  cupObj.visible = true; cupObj.scale.setScalar(1);
+zTamper.ok = () => pf.slot === "tamp" && pf.grounds > 1 && !pf.tamped;
+zKnock.ok = () => pf.grounds > 0;
+const cupIn = (slot) => cups.find((c) => c.visible && c.userData.mode === "snap" && c.userData.st.slot === slot);
+zTray.ok = () => !cupIn("tray");
+zServe.ok = () => !cupIn("serve") && !G.serving;
+let lastCup = cups[cups.length - 1];
+let cup = lastCup.userData.st;
+function activeCup() {
+  return cupIn("tray") || (held && held.userData.kind === "cup" ? held : null) || (lastCup.visible ? lastCup : cups.find((c) => c.visible) || lastCup);
 }
-resetCup();
 
 /* ================= Заказы ================= */
 const RECIPES = {
@@ -531,20 +558,17 @@ req("GET", "/staff").then((o) => {
     if (n.length) names = [DIRECTOR].concat(n);
   }
 }).catch(() => {});
-const G = { running: false, orders: [], idx: 0, results: [], total: 0, t0: 0, serving: false, patience: PATIENCE };
+const G = { running: false, orders: [], idx: 0, results: [], total: 0, serving: false, patience: PATIENCE };
 function newShift() {
   const keys = Object.keys(RECIPES);
   G.orders = [];
-  for (let i = 0; i < ORDERS_PER_SHIFT; i++) {
-    G.orders.push({ r: RECIPES[i === 0 ? "espresso" : pick(keys)], sugar: pick([0, 0, 1, 2]), who: pick(names) });
-  }
+  for (let i = 0; i < ORDERS_PER_SHIFT; i++) G.orders.push({ r: RECIPES[i === 0 ? "espresso" : pick(keys)], sugar: pick([0, 0, 1, 2]), who: pick(names) });
   G.idx = 0; G.results = []; G.total = 0; G.running = true;
   startOrder();
 }
 const order = () => G.orders[G.idx];
 function startOrder() {
   const o = order(); o.t0 = performance.now();
-  resetCup();
   $("#ordTitle").textContent = o.r.name + (o.sugar ? ", " + o.sugar + " " + plural(o.sugar, "сахар", "сахара", "сахаров") : ", без сахара");
   $("#ordWho").textContent = "Заказ от сотрудника: " + o.who;
   $("#stOrder").textContent = "Заказ " + (G.idx + 1) + "/" + ORDERS_PER_SHIFT;
@@ -569,40 +593,40 @@ function steps() {
   list.push(["Поставить на «Выдачу»", false]);
   return list;
 }
-function evaluate() {
+function evaluate(st) {
   const o = order(), r = o.r, notes = [];
   let s = 0;
-  if (cup.coffee < 5) notes.push("Где кофе? Тут " + (cup.milk > 5 ? "просто молоко" : cup.water > 5 ? "просто вода" : "пусто"));
+  if (st.coffee < 5) notes.push("Где кофе? Тут " + (st.milk > 5 ? "просто молоко" : st.water > 5 ? "просто вода" : "пусто"));
   else {
-    const d = Math.abs(cup.coffee - r.shot);
+    const d = Math.abs(st.coffee - r.shot);
     s += Math.max(0, 30 - d * 1.5);
-    if (d > 8) notes.push(cup.coffee < r.shot ? "Кофе маловато" : "Кофе слишком много");
-    s += Math.round(20 * cup.extract);
-    if (cup.extract < .65 && cup.extractNote) notes.push(cup.extractNote);
+    if (d > 8) notes.push(st.coffee < r.shot ? "Кофе маловато" : "Кофе слишком много");
+    s += Math.round(20 * st.extract);
+    if (st.extract < .65 && st.extractNote) notes.push(st.extractNote);
   }
   if (r.water) {
-    const d = Math.abs(cup.water - r.water); s += Math.max(0, 20 - d * .3);
-    if (d > 25) notes.push(cup.water < r.water ? "Мало воды" : "Слишком много воды");
-  } else if (cup.water > 5) { s -= Math.min(20, cup.water * .3); notes.push("Воду не заказывали"); }
+    const d = Math.abs(st.water - r.water); s += Math.max(0, 20 - d * .3);
+    if (d > 25) notes.push(st.water < r.water ? "Мало воды" : "Слишком много воды");
+  } else if (st.water > 5) { s -= Math.min(20, st.water * .3); notes.push("Воду не заказывали"); }
   if (r.milk) {
-    const d = Math.abs(cup.milk - r.milk); s += Math.max(0, 20 - d * .25);
-    if (d > 30) notes.push(cup.milk < r.milk ? "Мало молока" : "Слишком много молока");
-    if (cup.milk > 10 && cup.milkTemp < 45) { s -= 10; notes.push("Молоко холодное"); }
-    else if (cup.milkTemp > 72) { s -= 10; notes.push("Молоко пережжено"); }
-  } else if (cup.milk > 5) { s -= Math.min(20, cup.milk * .3); notes.push("Молоко не заказывали"); }
+    const d = Math.abs(st.milk - r.milk); s += Math.max(0, 20 - d * .25);
+    if (d > 30) notes.push(st.milk < r.milk ? "Мало молока" : "Слишком много молока");
+    if (st.milk > 10 && st.milkTemp < 45) { s -= 10; notes.push("Молоко холодное"); }
+    else if (st.milkTemp > 72) { s -= 10; notes.push("Молоко пережжено"); }
+  } else if (st.milk > 5) { s -= Math.min(20, st.milk * .3); notes.push("Молоко не заказывали"); }
   if (!r.water && !r.milk) s += 20;
-  if (cup.sugar === o.sugar) s += 10; else { s -= 5 * Math.abs(cup.sugar - o.sugar); notes.push("Сахара " + cup.sugar + " вместо " + o.sugar); }
-  if (o.sugar > 0) { if (cup.stirs >= 3) s += 10; else notes.push("Сахар не размешан"); } else s += 10;
+  if (st.sugar === o.sugar) s += 10; else { s -= 5 * Math.abs(st.sugar - o.sugar); notes.push("Сахара " + st.sugar + " вместо " + o.sugar); }
+  if (o.sugar > 0) { if (st.stirs >= 3) s += 10; else notes.push("Сахар не размешан"); } else s += 10;
   const sec = (performance.now() - o.t0) / 1000;
   if (sec < 70) s += 10; else if (sec < 110) s += 5;
-  if (cup.spilled) { s -= 10; notes.push("Чашка липкая: перелили"); }
+  if (st.spilled) { s -= 10; notes.push("Кружка липкая: расплескали"); }
   s = clamp(Math.round(s), 0, 100);
   const verdict = s >= 90 ? "Божественно" : s >= 70 ? "Сойдёт" : s >= 40 ? "Пить можно" : "Это преступление";
   return { s, verdict, notes, name: r.name, who: o.who };
 }
-function serve() {
+function serve(c) {
   G.serving = true;
-  const res = evaluate();
+  const res = evaluate(c.userData.st);
   G.results.push(res); G.total += res.s;
   $("#stScore").textContent = G.total + " " + plural(G.total, "очко", "очка", "очков");
   const pop = $("#pop"); pop.innerHTML = "";
@@ -612,6 +636,11 @@ function serve() {
   (res.notes.length ? res.notes : ["Без замечаний"]).forEach((n) => add("p", null, n));
   pop.hidden = false; pop.style.animation = "none"; void pop.offsetWidth; pop.style.animation = "";
   sDing();
+  setTimeout(() => {
+    // Коллега уносит кружку, через 2 секунды чистая появляется в стопке
+    c.userData.mode = "carry"; c.userData.target.set(8, 1.2, SERVE.z);
+    setTimeout(() => respawn(c), RESPAWN_MS);
+  }, 900);
   setTimeout(() => {
     pop.hidden = true; G.serving = false;
     G.idx++;
@@ -658,6 +687,123 @@ function endShift() {
   (name && G.total >= best ? req("PUT", "/coffee/" + uid, { name, score: G.total }).catch(() => {}) : Promise.resolve()).then(() => loadBoard(lb));
 }
 
+/* ================= Физика ================= */
+const GRAV = 26;
+const UP = new THREE.Vector3(0, 1, 0);
+function onCounter(p) { return p.x > COUNTER.x0 && p.x < COUNTER.x1 && p.z > COUNTER.z0 && p.z < COUNTER.z1; }
+function supportY(o, prevY) {
+  const p = o.position, r = o.userData.r * .5;
+  let g = onCounter(p) ? 0 : -Infinity;
+  for (const b of BOXES) {
+    if (p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r && prevY >= b.top - .12) g = Math.max(g, b.top);
+  }
+  const dx = p.x - GRINDER_CYL.x, dz = p.z - GRINDER_CYL.z;
+  if (Math.hypot(dx, dz) < GRINDER_CYL.r && prevY >= GRINDER_CYL.top - .12) g = Math.max(g, GRINDER_CYL.top);
+  if (o.userData.kind === "cup") {
+    for (const c of cups) {
+      if (c === o || !c.visible || c === held || c.userData.mode === "carry") continue;
+      if (Math.hypot(c.position.x - p.x, c.position.z - p.z) < .3 && c.position.y < prevY - .05) g = Math.max(g, c.position.y + NEST);
+    }
+  }
+  return g;
+}
+function collide(o, prev) {
+  const p = o.position, v = o.userData.vel, r = o.userData.r;
+  if (p.z < COUNTER.z0 + r && p.y < 8) { p.z = COUNTER.z0 + r; v.z = Math.abs(v.z) * .4; }
+  for (const b of BOXES) {
+    if (b.top < .3) continue;
+    const inside = p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r && p.y < b.top - .12;
+    if (!inside) continue;
+    // выталкиваем по ближайшей стороне
+    const dl = p.x - (b.x0 - r), dr = (b.x1 + r) - p.x, df = (b.z1 + r) - p.z, db = p.z - (b.z0 - r);
+    const m = Math.min(dl, dr, df, db);
+    if (m === df) { p.z = b.z1 + r; v.z = Math.abs(v.z) * .35; }
+    else if (m === db) { p.z = b.z0 - r; v.z = -Math.abs(v.z) * .35; }
+    else if (m === dl) { p.x = b.x0 - r; v.x = -Math.abs(v.x) * .35; }
+    else { p.x = b.x1 + r; v.x = Math.abs(v.x) * .35; }
+    if (Math.abs(v.x) + Math.abs(v.z) > 2) sKnock(Math.abs(v.x) + Math.abs(v.z));
+  }
+  const dx = p.x - GRINDER_CYL.x, dz = p.z - GRINDER_CYL.z, d = Math.hypot(dx, dz);
+  if (d < GRINDER_CYL.r + r && p.y < GRINDER_CYL.top - .12 && d > .001) {
+    const nx = dx / d, nz = dz / d;
+    p.x = GRINDER_CYL.x + nx * (GRINDER_CYL.r + r); p.z = GRINDER_CYL.z + nz * (GRINDER_CYL.r + r);
+    const vn = v.x * nx + v.z * nz;
+    if (vn < 0) { v.x -= 1.4 * vn * nx; v.z -= 1.4 * vn * nz; sKnock(-vn); }
+  }
+}
+function wrapAngle(a) { a = a % (Math.PI * 2); if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; }
+function stepPhysics(o, dt) {
+  const u = o.userData, v = u.vel;
+  const prevY = o.position.y;
+  v.y -= GRAV * dt;
+  o.position.addScaledVector(v, dt);
+  collide(o, prevY);
+  const g = supportY(o, prevY);
+  let grounded = false;
+  if (o.position.y <= g) {
+    o.position.y = g;
+    if (v.y < -4) {
+      sKnock(-v.y);
+      if (o.userData.kind === "cup" && -v.y > 9) splash(o, -v.y);
+      v.y = -v.y * .3;
+      u.spin.multiplyScalar(.6);
+    } else { v.y = 0; grounded = true; }
+    v.x *= Math.exp(-dt * 8); v.z *= Math.exp(-dt * 8);
+  }
+  if (grounded) {
+    u.spin.multiplyScalar(Math.exp(-dt * 12));
+    o.rotation.x = THREE.MathUtils.lerp(wrapAngle(o.rotation.x), 0, 1 - Math.exp(-dt * 12));
+    o.rotation.z = THREE.MathUtils.lerp(wrapAngle(o.rotation.z), 0, 1 - Math.exp(-dt * 12));
+    if (v.lengthSq() < .01) u.rest += dt; else u.rest = 0;
+  } else {
+    o.rotation.x += u.spin.x * dt; o.rotation.y += u.spin.y * dt; o.rotation.z += u.spin.z * dt;
+    u.rest = 0;
+  }
+  if (o.position.y < -3.5 && !u.lost) lose(o);
+}
+function splash(c, speed) {
+  const st = c.userData.st, tot = st.coffee + st.water + st.milk;
+  if (tot < 5) return;
+  const k = clamp((speed - 9) / 10 + .3, .3, .8);
+  st.coffee *= 1 - k; st.water *= 1 - k; st.milk *= 1 - k; st.spilled = true;
+  for (let i = 0; i < 8; i++) puff(c.position.clone().add(new THREE.Vector3(0, .6, 0)), .6);
+  warn("Плюх! Кофе расплескался по стойке.");
+}
+const LOST_MSG = {
+  portafilter: "Холдер улетел за прилавок. Новый будет через 2 секунды.",
+  tamper: "Темпер улетел. Завхоз несёт новый.",
+  cup: "Дзынь! Кружка разбилась. Новая появится в стопке.",
+  carton: "Пакет молока улетел. Сейчас достанем новый.",
+  pitcher: "Питчер улетел за прилавок. Сейчас вернём.",
+  spoon: "Ложка улетела. Ложек у нас много."
+};
+function lose(o) {
+  const u = o.userData; u.lost = true; u.mode = "gone"; o.visible = false;
+  if (u.kind === "sugar") { scene.remove(o); if (sugarCube === o) sugarCube = null; return; }
+  sCrash(); toast(LOST_MSG[u.kind] || "Улетело!");
+  if (u.kind === "portafilter") { Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 }); if (tamperOn) { tamperOn = false; tamperObj.userData.mode = "free"; } }
+  if (u.kind === "pitcher") { pit.milk = 0; pit.temp = 6; pit.slot = "free"; }
+  if (u.kind === "tamper") tamperOn = false;
+  setTimeout(() => respawn(o), RESPAWN_MS);
+}
+function respawn(o) {
+  const u = o.userData;
+  if (u.kind === "cup") { u.st = freshCupState(); o.scale.setScalar(1); }
+  u.lost = false; u.mode = "free"; o.visible = true;
+  o.position.copy(u.home).add(new THREE.Vector3(0, u.kind === "cup" ? 3.2 : 2.4, 0));
+  o.rotation.set(0, u.kind === "spoon" ? .5 : 0, 0);
+  u.vel.set(0, 0, 0); u.spin.set(0, 0, 0); u.rest = 0;
+  for (let i = 0; i < 5; i++) puff(o.position.clone(), .5);
+}
+function snap(o, pos) { const u = o.userData; u.mode = "snap"; u.target.copy(pos); u.vel.set(0, 0, 0); u.spin.set(0, 0, 0); }
+function release(o, vel) {
+  const u = o.userData; u.mode = "free"; u.vel.copy(vel);
+  const sp = Math.hypot(vel.x, vel.z);
+  if (sp > 4) u.vel.y = Math.max(u.vel.y, sp * .28);
+  u.spin.set(vel.z * .9, (Math.random() - .5) * sp * .4, -vel.x * .9);
+  if (sp > 9) sClick();
+}
+
 /* ================= Ввод ================= */
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 const pickables = draggables.concat([brewBtn, waterBtn, steamKnob, grindBtn, sugarBowl]);
@@ -665,20 +811,21 @@ brewBtn.userData = { kind: "brewBtn", name: "Кнопка «Кофе»" };
 waterBtn.userData = { kind: "waterBtn", name: "Кнопка «Вода»" };
 steamKnob.userData = { kind: "steamKnob", name: "Ручка «Пар»" };
 grindBtn.userData = { kind: "grindBtn", name: "Кнопка кофемолки" };
-let held = null, holdAct = null, twisting = false, pressing = false, tampPress = 0, stirAcc = 0, stirLast = null, sugarCube = null;
+let held = null, holdAct = null, twisting = false, pressing = false, tampPress = 0, stirAcc = 0, stirLast = null, stirCup = null, sugarCube = null;
 let px = 0, py = 0, lastX = 0, rmbTouch = false;
+const trail = [];
 const lift = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.35);
 const tmpV = new THREE.Vector3();
 function setPointer(e) {
   px = e.clientX; py = e.clientY;
   ndc.set(px / innerWidth * 2 - 1, -(py / innerHeight) * 2 + 1);
-  mouseNX = ndc.x; mouseNY = ndc.y;
+  mouseNX = ndc.x;
 }
 function rootOf(o) { while (o && !(o.userData && o.userData.kind)) o = o.parent; return o; }
 function pickObj() {
   ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(pickables, true);
-  for (const h of hits) { const r = rootOf(h.object); if (r && r !== held && r !== sugarCube) return r; }
+  const hits = ray.intersectObjects(pickables.filter((o) => o.visible), true);
+  for (const h of hits) { const r = rootOf(h.object); if (r && r !== held && r !== sugarCube && r.userData.mode !== "carry") return r; }
   return null;
 }
 function cursorPoint() {
@@ -687,14 +834,13 @@ function cursorPoint() {
 }
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("pointerdown", (e) => {
-  if (!G.running || G.serving) return;
+  if (!G.running) return;
   audio(); setPointer(e); lastX = e.clientX;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   const hit = pickObj();
   const isRmb = e.button === 2 || (e.pointerType !== "mouse" && rmbTouch);
   if (isRmb) { rmb(hit); return; }
-  if (e.button !== 0) return;
-  if (!hit) return;
+  if (e.button !== 0 || !hit) return;
   const k = hit.userData.kind;
   if (["brewBtn", "waterBtn", "steamKnob", "grindBtn"].includes(k)) { holdAct = k; sClick(); return; }
   if (k === "sugarbowl") { grabSugar(); return; }
@@ -702,10 +848,13 @@ canvas.addEventListener("pointerdown", (e) => {
 });
 canvas.addEventListener("pointermove", (e) => {
   setPointer(e);
+  if (held) {
+    const p = cursorPoint();
+    if (p) { trail.push({ t: performance.now(), p: new THREE.Vector3(clamp(p.x, -6.4, 6.4), 1.35, clamp(p.z, -1.4, 3.6)) }); while (trail.length > 24) trail.shift(); }
+  }
   if (twisting) {
-    const dx = e.clientX - lastX;
     const was = pf.locked;
-    pf.angle = clamp(pf.angle + dx * .45, 0, 75);
+    pf.angle = clamp(pf.angle + (e.clientX - lastX) * .45, 0, 75);
     pf.locked = pf.angle >= 55;
     if (pf.locked && !was) { sClunk(); toast("Щёлк! Холдер закреплён."); }
     if (!pf.locked && was) sClick();
@@ -714,7 +863,7 @@ canvas.addEventListener("pointermove", (e) => {
 });
 function endPointer() {
   if (held) drop();
-  if (holdAct) holdAct = null;
+  holdAct = null;
   twisting = false;
   if (pressing) finishTamp();
 }
@@ -730,7 +879,6 @@ addEventListener("keydown", (e) => {
   if (e.key === "q" || e.key === "й") held.userData.tilt = clamp(held.userData.tilt + 9, 0, 110);
   if (e.key === "e" || e.key === "у") held.userData.tilt = clamp(held.userData.tilt - 9, 0, 110);
 });
-// Сенсорные экраны
 if (matchMedia("(pointer: coarse)").matches) {
   $("#touchbar").hidden = false;
   $("#tRmb").addEventListener("click", function () { rmbTouch = !rmbTouch; this.setAttribute("aria-pressed", rmbTouch); });
@@ -742,14 +890,15 @@ function grab(o) {
   const k = o.userData.kind;
   if (k === "portafilter") {
     if (pf.slot === "group" && pf.angle > 12) { toast("Сначала открутите холдер: зажмите ПКМ и ведите влево."); return; }
-    if (pf.slot === "tamp" && tamperOn) { tamperOn = false; tamperObj.userData.target.copy(tamperObj.userData.home); }
+    if (pf.slot === "tamp" && tamperOn) { tamperOn = false; tamperObj.userData.mode = "free"; tamperObj.userData.vel.set(0, 2, 0); }
     pf.slot = "free"; pf.angle = 0; pf.locked = false;
   }
-  if (k === "cup") cup.slot = "free";
+  if (k === "cup") { o.userData.st.slot = "free"; lastCup = o; }
   if (k === "pitcher") pit.slot = "free";
-  if (k === "tamper") { tamperOn = false; }
-  if (k === "spoon") { stirAcc = 0; stirLast = null; }
-  held = o; o.userData.tilt = 0;
+  if (k === "tamper") tamperOn = false;
+  if (k === "spoon") { stirAcc = 0; stirLast = null; stirCup = null; }
+  held = o; o.userData.tilt = 0; o.userData.mode = "held";
+  trail.length = 0;
   document.body.classList.add("holding");
   sClick();
 }
@@ -757,8 +906,8 @@ function grabSugar() {
   sugarCube = new THREE.Mesh(new THREE.BoxGeometry(.16, .16, .16), CHALK);
   sugarCube.castShadow = true;
   sugarCube.position.set(4.5, .6, -.5);
-  sugarCube.userData = { kind: "sugar", name: "Сахар", target: new THREE.Vector3(4.5, 1.3, -.5), tilt: 0 };
-  scene.add(sugarCube); held = sugarCube;
+  sugarCube.userData = { kind: "sugar", name: "Сахар", target: new THREE.Vector3(4.5, 1.3, -.5), tilt: 0, mode: "held", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r: .1, rest: 0 };
+  scene.add(sugarCube); held = sugarCube; trail.length = 0;
   document.body.classList.add("holding");
   sClick();
 }
@@ -771,57 +920,66 @@ function nearest(o) {
   }
   return best;
 }
-function onCounter(p) {
-  const x = clamp(p.x, -5.9, 5.9); let z = clamp(p.z, -1.0, 2.6);
-  if (z < -.8 && x > -1.6 && x < 2.8) z = -.75;
-  return new THREE.Vector3(x, 0, z);
+function nearestCup(o, r) {
+  let best = null, bd = r;
+  for (const c of cups) {
+    if (!c.visible || c === held || c.userData.mode === "carry") continue;
+    const d = Math.hypot(o.position.x - c.position.x, o.position.z - c.position.z);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
 }
-function nearCup(o, r = .75) { return Math.hypot(o.position.x - cupObj.position.x, o.position.z - cupObj.position.z) < r; }
+function releaseVel() {
+  const now = performance.now();
+  const last = trail[trail.length - 1];
+  if (!last || now - last.t > 90) return new THREE.Vector3();
+  const old = trail.find((s) => last.t - s.t < 120) || last;
+  if (last.t - old.t < 8) return new THREE.Vector3();
+  const v = last.p.clone().sub(old.p).divideScalar((last.t - old.t) / 1000);
+  v.y = 0;
+  if (v.length() > 26) v.setLength(26);
+  return v;
+}
 function drop() {
   const o = held; held = null;
   document.body.classList.remove("holding");
-  const k = o.userData.kind, z = nearest(o);
+  const k = o.userData.kind, vel = releaseVel(), speed = vel.length(), z = speed < 6 ? nearest(o) : null;
   o.userData.tilt = 0;
   if (k === "sugar") {
-    if (nearCup(o) && cupObj.visible) { cup.sugar++; sPlop(); toast("Плюх! Сахар в чашке: " + cup.sugar + "."); }
-    else toast("Сахар укатился под стол.");
-    scene.remove(o); sugarCube = null; return;
+    const c = nearestCup(o, .55);
+    if (c && speed < 6) { sugarInto(c, o); return; }
+    release(o, vel); return;
   }
-  if (k === "spoon") { o.userData.target.copy(SPOON_HOME); return; }
-  if (k === "tamper") {
-    if (z) { tamperOn = true; o.userData.target.copy(z.pos); sClick(); }
-    else o.userData.target.copy(onCounter(o.position));
+  if (k === "spoon" && stirCup && speed < 6) { snap(o, o.userData.home); stirCup = null; return; }
+  if (k === "tamper" && z) { tamperOn = true; snap(o, z.pos); sClick(); return; }
+  if (k === "portafilter" && z) {
+    if (z.id === "knock") {
+      Object.assign(pf, { grounds: 0, tamped: false, brewed: 0, tampQ: 0, slot: "free" });
+      sThunk(); toast("Бах! Холдер чистый.");
+      o.userData.mode = "free"; o.position.set(-4.2, 1.2, -.2); o.userData.vel.set(0, 0, 0); return;
+    }
+    snap(o, z.pos); pf.slot = z.id; sClick();
+    if (z.id === "group") { pf.angle = 0; pf.locked = false; toast("Теперь зажмите ПКМ на холдере и ведите вправо."); }
     return;
   }
-  if (k === "portafilter") {
-    if (z && z.id === "knock") {
-      pf.grounds = 0; pf.tamped = false; pf.used = false; pf.brewed = 0; pf.tampQ = 0;
-      sThunk(); toast("Бах! Холдер чистый.");
-      o.userData.target.set(-4.2, 0, -.3); pf.slot = "free"; return;
-    }
-    if (z) {
-      o.userData.target.copy(z.pos); pf.slot = z.id; sClick();
-      if (z.id === "group") { pf.angle = 0; pf.locked = false; toast("Теперь зажмите ПКМ на холдере и ведите вправо."); }
-      return;
-    }
-    pf.slot = "free"; o.userData.target.copy(onCounter(o.position)); return;
+  if (k === "cup" && z) {
+    snap(o, z.pos); o.userData.st.slot = z.id; lastCup = o; sClick();
+    if (z.id === "serve" && G.running && !G.serving) serve(o);
+    return;
   }
-  if (k === "cup") {
-    if (z && z.id === "serve") { o.userData.target.copy(z.pos); cup.slot = "serve"; if (G.running && !G.serving) serve(); return; }
-    if (z) { o.userData.target.copy(z.pos); cup.slot = z.id; sClick(); return; }
-    cup.slot = "free"; o.userData.target.copy(onCounter(o.position)); return;
-  }
-  if (k === "pitcher") {
-    if (z) { o.userData.target.copy(z.pos); pit.slot = "steam"; sClick(); return; }
-    pit.slot = "free"; o.userData.target.copy(onCounter(o.position)); return;
-  }
-  o.userData.target.copy(onCounter(o.position));
+  if (k === "pitcher" && z) { snap(o, z.pos); pit.slot = "steam"; sClick(); return; }
+  release(o, vel);
+}
+function sugarInto(c, cube) {
+  c.userData.st.sugar++; lastCup = c; sPlop();
+  toast("Плюх! Сахар в кружке: " + c.userData.st.sugar + ".");
+  scene.remove(cube); if (sugarCube === cube) sugarCube = null;
 }
 function rmb(hit) {
   if (!hit) return;
   const k = hit.userData.kind;
   if (k === "portafilter" && pf.slot === "group") { twisting = true; return; }
-  if (k === "portafilter" && pf.slot !== "group") { toast("Повернуть холдер можно только в группе кофемашины."); return; }
+  if (k === "portafilter") { toast("Повернуть холдер можно только в группе кофемашины."); return; }
   if (k === "tamper" && tamperOn) { pressing = true; tampPress = 0; return; }
   if (k === "tamper") { toast("Сначала поставьте темпер на холдер с кофе."); return; }
   toast("Правой кнопкой поворачивают холдер и прижимают темпер.");
@@ -834,7 +992,7 @@ function finishTamp() {
   if (p >= .65 && p <= .92) { pf.tampQ = 1; toast("Идеальная утрамбовка!"); sClunk(); }
   else if (p < .65) { pf.tampQ = .55; toast("Слабовато утрамбовали. Кофе выйдет кислым."); sClick(); }
   else { pf.tampQ = .6; toast("Пережали! Кофе будет горчить."); sClunk(); }
-  tamperOn = false; tamperObj.userData.target.copy(tamperObj.userData.home);
+  tamperOn = false; snap(tamperObj, tamperObj.userData.home);
 }
 
 /* ================= Струи и пар ================= */
@@ -842,7 +1000,6 @@ function stream(color, r = .035) {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 8), new THREE.MeshStandardMaterial({ color, roughness: .3, transparent: true, opacity: .9 }));
   m.visible = false; scene.add(m); return m;
 }
-const UP = new THREE.Vector3(0, 1, 0);
 function setStream(m, a, b) {
   const d = b.clone().sub(a), len = d.length();
   if (len < .01) { m.visible = false; return; }
@@ -851,7 +1008,6 @@ function setStream(m, a, b) {
 }
 const stGround = stream(0x3a2010, .06), stCoffee1 = stream(0x5a2e12, .025), stCoffee2 = stream(0x5a2e12, .025);
 const stWater = stream(0xbfe3ff, .03), stMilk = stream(0xfbf6ec, .045), stCarton = stream(0xfbf6ec, .045);
-const puffs = [];
 const puffTex = (() => {
   const c = document.createElement("canvas"); c.width = c.height = 64;
   const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -859,25 +1015,43 @@ const puffTex = (() => {
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
 })();
+const puffs = [];
 const puffMat = new THREE.SpriteMaterial({ map: puffTex, color: 0xffffff, transparent: true, opacity: .6, depthWrite: false });
 function puff(p, spread = .15) {
   let s = puffs.find((x) => !x.visible);
-  if (!s) { if (puffs.length > 70) return; s = new THREE.Sprite(puffMat.clone()); scene.add(s); puffs.push(s); }
+  if (!s) { if (puffs.length > 80) return; s = new THREE.Sprite(puffMat.clone()); scene.add(s); puffs.push(s); }
   s.visible = true; s.position.copy(p).add(new THREE.Vector3((Math.random() - .5) * spread, 0, (Math.random() - .5) * spread));
   s.userData.life = 1; s.userData.v = .8 + Math.random() * .6; s.scale.setScalar(.15);
 }
-function cupTop() { return cupObj.position.clone().add(new THREE.Vector3(0, .12 + liquidH(), 0)); }
-function liquidH() { return clamp((cup.coffee + cup.water + cup.milk) / 220, 0, 1) * .78; }
+const liquidH = (st) => clamp((st.coffee + st.water + st.milk) / 220, 0, 1) * .78;
+function cupTop(c) { return c.position.clone().add(new THREE.Vector3(0, .12 + liquidH(c.userData.st), 0)); }
+function cupColor(st) {
+  const tot = st.coffee + st.water + st.milk || 1;
+  const col = new THREE.Color(0x2a160b);
+  col.lerp(new THREE.Color(0x6b3c1c), st.water / tot);
+  col.lerp(new THREE.Color(0xd9b88f), clamp(st.milk / tot * 1.2, 0, 1));
+  return col;
+}
+function addToCup(c, kind, ml, temp) {
+  const st = c.userData.st, tot = st.coffee + st.water + st.milk, room = 220 - tot;
+  lastCup = c;
+  if (room <= 0) { if (!st.spilled) { st.spilled = true; toast("Перелили! Кружка липкая."); } return 0; }
+  const add = Math.min(ml, room);
+  if (kind === "milk") { st.milkTemp = (st.milkTemp * st.milk + temp * add) / (st.milk + add || 1); st.milk += add; }
+  else st[kind] += add;
+  return add;
+}
 
 /* ================= HUD ================= */
 const hintEl = $("#hint"), tipEl = $("#tip"), meterEl = $("#meter");
-function meter(label, value, max, lo, hi, mark) {
+function meter(text, value, max, lo, hi) {
   meterEl.hidden = false;
-  $("#mLbl").textContent = label;
+  $("#mLbl").textContent = text;
   $("#mFill").style.width = clamp(value / max * 100, 0, 100) + "%";
   $("#mZone").style.left = lo / max * 100 + "%"; $("#mZone").style.width = (hi - lo) / max * 100 + "%";
-  const mk = $("#mMark"); if (mark !== undefined) { mk.hidden = false; mk.style.left = clamp(mark / max * 100, 0, 100) + "%"; } else mk.hidden = true;
+  $("#mMark").hidden = true;
 }
+function stepsLeft() { return steps().filter((s) => !s[1]).length; }
 function hint() {
   if (!G.running) return "Нажмите «Начать смену».";
   const o = order(), r = o.r;
@@ -886,16 +1060,15 @@ function hint() {
     if (k === "portafilter") return pf.grounds > 0 && pf.brewed > 0 ? "Выбейте старый кофе: отнесите холдер в нок-бокс слева." :
       pf.grounds < 1 ? "Поставьте холдер под кофемолку (жёлтое кольцо)." : !pf.tamped ? "Поставьте холдер на резиновый коврик для темпера." : "Вставьте холдер в группу кофемашины, под неё.";
     if (k === "tamper") return "Опустите темпер на холдер с кофе.";
-    if (k === "cup") return cup.coffee >= 22 && stepsLeft() <= 1 ? "Отнесите чашку на «Выдачу» справа." : "Поставьте чашку на поддон кофемашины.";
+    if (k === "cup") return cup.coffee >= 22 && stepsLeft() <= 1 ? "Отнесите кружку на «Выдачу» справа." : "Поставьте кружку на поддон кофемашины.";
     if (k === "carton") return "Наведите пакет на питчер и крутите колесо мыши вниз, чтобы налить.";
-    if (k === "pitcher") return pit.milk > 10 && pit.temp < 50 ? "Поставьте питчер на подставку под паровой трубкой." : "Наведите на чашку и крутите колесо, чтобы влить молоко.";
-    if (k === "spoon") return "Опустите ложку в чашку, зажмите и водите мышью по кругу.";
-    if (k === "sugar") return "Бросьте сахар в чашку.";
+    if (k === "pitcher") return pit.milk > 10 && pit.temp < 50 ? "Поставьте питчер на подставку под паровой трубкой." : "Наведите на кружку и крутите колесо, чтобы влить молоко.";
+    if (k === "spoon") return "Опустите ложку в кружку, зажмите и водите мышью по кругу.";
+    if (k === "sugar") return "Бросьте сахар в кружку. Можно и метнуть.";
   }
-  if (pf.grounds > 0 && pf.brewed > 0 && cup.coffee >= 22) { /* холдер можно оставить */ }
   if (cup.coffee < 22) {
-    if (pf.brewed > 0 && pf.grounds > 0 && pf.brewed >= 30) return "Таблетка уже пролита. Открутите холдер (ПКМ влево) и выбейте в нок-бокс.";
-    if (pf.slot === "group" && pf.locked) return cup.slot !== "tray" ? "Поставьте чашку на поддон под холдер." : "Зажмите зелёную кнопку «Кофе» и отпустите на 30 мл.";
+    if (pf.brewed >= 30 && pf.grounds > 0) return "Таблетка уже пролита. Открутите холдер (ПКМ влево) и выбейте в нок-бокс.";
+    if (pf.slot === "group" && pf.locked) return !cupIn("tray") ? "Поставьте кружку на поддон под холдер. Кружки в стопке слева." : "Зажмите зелёную кнопку «Кофе» и отпустите на 30 мл.";
     if (pf.slot === "group") return "Зажмите ПКМ на холдере и ведите мышь вправо, пока не щёлкнет.";
     if (pf.tamped) return "Перенесите холдер в группу кофемашины.";
     if (pf.grounds >= 1 && pf.slot === "tamp") return tamperOn ? "Зажмите ПКМ на темпере и отпустите, когда шкала в зелёной зоне." : "Возьмите темпер и поставьте его на холдер.";
@@ -903,19 +1076,17 @@ function hint() {
     if (pf.slot === "grinder") return pf.grounds < 16 ? "Зажмите чёрную кнопку на кофемолке. Нужно 16–20 г." : "Хватит! Переносите холдер на коврик для темпера.";
     return "Возьмите холдер (ЛКМ) и поставьте под кофемолку.";
   }
-  if (r.water && cup.water < r.water - 20) return cup.slot === "tray" ? "Зажмите синюю кнопку «Вода». Нужно " + r.water + " мл." : "Поставьте чашку на поддон, чтобы налить воды.";
+  if (r.water && cup.water < r.water - 20) return cup.slot === "tray" ? "Зажмите синюю кнопку «Вода». Нужно " + r.water + " мл." : "Поставьте кружку на поддон, чтобы налить воды.";
   if (r.milk && cup.milk < r.milk - 25) {
     if (pit.milk < r.milk * .9 && pit.temp < 50) return "Налейте молоко в питчер: возьмите пакет и крутите колесо над питчером.";
     if (pit.temp < 55) return pit.slot === "steam" ? "Зажмите красную ручку «Пар». Отпустите при 55–70°." : "Поставьте питчер на подставку под паровой трубкой.";
-    return "Возьмите питчер и влейте молоко в чашку колесом мыши.";
+    return "Возьмите питчер и влейте молоко в кружку колесом мыши.";
   }
-  if (cup.sugar < o.sugar) return "Возьмите сахар из сахарницы (ЛКМ) и бросьте в чашку.";
+  if (cup.sugar < o.sugar) return "Возьмите сахар из сахарницы (ЛКМ) и бросьте в кружку.";
   if (o.sugar && cup.stirs < 3) return "Возьмите ложку и размешайте: зажмите и водите мышью по кругу.";
-  return "Готово? Отнесите чашку на «Выдачу» справа.";
+  return "Готово? Отнесите кружку на «Выдачу» справа.";
 }
-function stepsLeft() { return steps().filter((s) => !s[1]).length; }
-let hudTick = 0, warnT = 0, spillWarned = false;
-function warn(msg) { const n = performance.now(); if (n - warnT > 2500) { warnT = n; toast(msg); } }
+let hudTick = 0;
 function hud(now) {
   if (now - hudTick < 120) return;
   hudTick = now;
@@ -928,7 +1099,7 @@ function hud(now) {
     bar.style.backgroundColor = left > .5 ? "#0a8f5c" : left > .2 ? "#ffd21f" : "#e0301e";
   }
   const parts = [];
-  parts.push("<b>Чашка:</b> кофе " + Math.round(cup.coffee) + " мл, вода " + Math.round(cup.water) + " мл, молоко " + Math.round(cup.milk) + " мл" + (cup.milk > 5 ? " (" + Math.round(cup.milkTemp) + "°)" : "") + ", сахар " + cup.sugar + ", размешано " + Math.floor(cup.stirs));
+  parts.push("<b>Кружка:</b> кофе " + Math.round(cup.coffee) + " мл, вода " + Math.round(cup.water) + " мл, молоко " + Math.round(cup.milk) + " мл" + (cup.milk > 5 ? " (" + Math.round(cup.milkTemp) + "°)" : "") + ", сахар " + cup.sugar + ", размешано " + Math.floor(cup.stirs));
   parts.push("<b>Холдер:</b> " + (pf.grounds > 0 ? pf.grounds.toFixed(1) + " г" + (pf.tamped ? ", утрамбован" : "") + (pf.brewed > 0 ? ", пролит" : "") : "пустой") + (pf.slot === "group" ? (pf.locked ? ", закреплён" : ", не закреплён") : ""));
   parts.push("<b>Питчер:</b> " + Math.round(pit.milk) + " мл, " + Math.round(pit.temp) + "°");
   $("#cupInfo").innerHTML = parts.join("<br>");
@@ -939,7 +1110,7 @@ function tooltip() {
   if (!h) { tipEl.hidden = true; return; }
   const k = h.userData.kind;
   const act = { brewBtn: "зажмите ЛКМ", waterBtn: "зажмите ЛКМ", steamKnob: "зажмите ЛКМ", grindBtn: "зажмите ЛКМ", sugarbowl: "ЛКМ: взять кусочек" }[k] ||
-    (k === "portafilter" && pf.slot === "group" ? "ПКМ + мышь: повернуть" : k === "tamper" && tamperOn ? "зажмите ПКМ: прижать" : "ЛКМ: взять");
+    (k === "portafilter" && pf.slot === "group" ? "ПКМ + мышь: повернуть" : k === "tamper" && tamperOn ? "зажмите ПКМ: прижать" : "ЛКМ: взять, рывком: бросить");
   tipEl.innerHTML = "";
   tipEl.appendChild(document.createTextNode(h.userData.name + " "));
   const em = document.createElement("em"); em.textContent = act; tipEl.appendChild(em);
@@ -949,82 +1120,107 @@ function tooltip() {
 /* ================= Игровой цикл ================= */
 const timer = new THREE.Timer();
 const btnRest = new Map([[brewBtn, -.82], [waterBtn, -.82], [steamKnob, -.78], [grindBtn, -.98]]);
-function cupColor() {
-  const tot = cup.coffee + cup.water + cup.milk || 1;
-  const c = new THREE.Color(0x2a160b);
-  c.lerp(new THREE.Color(0x6b3c1c), cup.water / tot);
-  c.lerp(new THREE.Color(0xd9b88f), clamp(cup.milk / tot * 1.2, 0, 1));
-  return c;
-}
-function addToCup(kind, ml, temp) {
-  const tot = cup.coffee + cup.water + cup.milk;
-  const room = 220 - tot;
-  if (room <= 0) { if (!cup.spilled) { cup.spilled = true; toast("Перелили! Чашка липкая."); } return 0; }
-  const add = Math.min(ml, room);
-  if (kind === "milk") { cup.milkTemp = (cup.milkTemp * cup.milk + temp * add) / (cup.milk + add || 1); cup.milk += add; }
-  else cup[kind] += add;
-  return add;
-}
+let burnWarned = false;
 function update(dt, now) {
-  // Камера: лёгкий параллакс
   camX = THREE.MathUtils.lerp(camX, held ? mouseNX * .12 : 0, 1 - Math.exp(-dt * 3));
   camera.position.set(CAM_BASE.x * camDist + camX, CAM_BASE.y * camDist, CAM_BASE.z * camDist);
   camera.lookAt(CAM_LOOK);
+  cup = activeCup().userData.st;
 
   // Удерживаемый предмет
   if (held) {
     const p = cursorPoint();
     if (p) {
-      held.userData.target.set(clamp(p.x, -6, 6), 1.35, clamp(p.z, -1.4, 2.8));
-      // Ложка в чашке
-      if (held === spoonObj && nearCup(spoonObj, .9) && cupObj.visible) {
-        const c = cupObj.position.clone(); c.y += .9; c.project(camera);
-        const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
-        const a = Math.atan2(py - sy, px - sx);
-        if (stirLast !== null) {
-          let d = a - stirLast; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
-          stirAcc += Math.abs(d);
-          const before = Math.floor(cup.stirs);
-          if (cup.coffee + cup.water + cup.milk > 5) cup.stirs = stirAcc / (Math.PI * 2);
-          if (Math.floor(cup.stirs) > before) sClink();
-        }
-        stirLast = a;
-        held.userData.target.set(cupObj.position.x + Math.cos(a) * .2, .55, cupObj.position.z + Math.sin(a) * .2);
-        spoonObj.rotation.set(-1.1, -a + Math.PI / 2, 0);
-      } else if (held === spoonObj) { stirLast = null; spoonObj.rotation.set(0, .5, 0); }
+      held.userData.target.set(clamp(p.x, -6.4, 6.4), 1.35, clamp(p.z, -1.4, 3.6));
+      if (held === spoonObj) {
+        const c = stirCup && Math.hypot(spoonObj.position.x - stirCup.position.x, spoonObj.position.z - stirCup.position.z) < 1.1 ? stirCup : nearestCup(spoonObj, .9);
+        if (c) {
+          if (c !== stirCup) { stirCup = c; stirLast = null; stirAcc = c.userData.st.stirs * Math.PI * 2; }
+          const sc = c.position.clone(); sc.y += .9; sc.project(camera);
+          const sx = (sc.x + 1) / 2 * innerWidth, sy = (1 - sc.y) / 2 * innerHeight;
+          const a = Math.atan2(py - sy, px - sx);
+          const st = c.userData.st;
+          if (stirLast !== null) {
+            let d = a - stirLast; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+            stirAcc += Math.abs(d);
+            const before = Math.floor(st.stirs);
+            if (st.coffee + st.water + st.milk > 5) st.stirs = stirAcc / (Math.PI * 2);
+            if (Math.floor(st.stirs) > before) sClink();
+          }
+          stirLast = a; lastCup = c;
+          held.userData.target.set(c.position.x + Math.cos(a) * .2, c.position.y + .55, c.position.z + Math.sin(a) * .2);
+          spoonObj.rotation.set(-1.1, -a + Math.PI / 2, 0);
+        } else { stirCup = null; stirLast = null; spoonObj.rotation.set(0, .5, 0); }
+      }
     }
-    const v = held.position.clone();
+    const before = held.position.clone();
     held.position.lerp(held.userData.target, 1 - Math.exp(-dt * 18));
-    const vel = held.position.clone().sub(v).divideScalar(Math.max(dt, .001));
+    const vel = held.position.clone().sub(before).divideScalar(Math.max(dt, .001));
     if (held !== spoonObj) {
       held.rotation.x = THREE.MathUtils.lerp(held.rotation.x, clamp(vel.z * .03, -.35, .35), .2);
       const tilt = THREE.MathUtils.degToRad(held.userData.tilt || 0);
       held.rotation.z = THREE.MathUtils.lerp(held.rotation.z, tilt - clamp(vel.x * .03, -.35, .35), .25);
     }
   }
-  // Остальные предметы к своим позициям
-  for (const o of draggables) {
-    if (o === held) continue;
-    o.position.lerp(o.userData.target, 1 - Math.exp(-dt * 14));
-    o.rotation.x = THREE.MathUtils.lerp(o.rotation.x, 0, .2);
-    o.rotation.z = THREE.MathUtils.lerp(o.rotation.z, 0, .2);
-    if (o === spoonObj) o.rotation.y = THREE.MathUtils.lerp(o.rotation.y, .5, .2);
+  // Остальные предметы: прилипшие едут к своему месту, свободные подчиняются физике
+  const bodies = draggables.concat(sugarCube && sugarCube !== held ? [sugarCube] : []);
+  for (const o of bodies) {
+    if (o === held || !o.visible) continue;
+    const u = o.userData;
+    if (u.mode === "snap" || u.mode === "carry") {
+      o.position.lerp(u.target, 1 - Math.exp(-dt * (u.mode === "carry" ? 3 : 14)));
+      o.rotation.x = THREE.MathUtils.lerp(wrapAngle(o.rotation.x), 0, .2);
+      o.rotation.z = THREE.MathUtils.lerp(wrapAngle(o.rotation.z), 0, .2);
+      if (o === spoonObj) o.rotation.y = THREE.MathUtils.lerp(o.rotation.y, .5, .2);
+    } else if (u.mode === "free") {
+      // Несколько подшагов, чтобы быстрые предметы не пролетали сквозь стенки
+      const n = Math.ceil(dt / .016);
+      for (let i = 0; i < n && u.mode === "free"; i++) stepPhysics(o, dt / n);
+      if (u.kind === "sugar" && u.mode === "free") {
+        const c = nearestCup(o, .36);
+        if (c && o.position.y < c.position.y + .95 && o.position.y > c.position.y && u.vel.y <= 0) sugarInto(c, o);
+        else if (u.rest > 1.5) { u.mode = "gone"; scene.remove(o); if (sugarCube === o) sugarCube = null; }
+      }
+    }
   }
-  // Холдер: поворот в группе
+  // Столкновения предметов друг с другом
+  const solids = draggables.filter((o) => o.visible && o !== held && (o.userData.mode === "free" || o.userData.mode === "snap"));
+  for (let i = 0; i < solids.length; i++) {
+    for (let j = i + 1; j < solids.length; j++) {
+      const a = solids[i], b = solids[j], ua = a.userData, ub = b.userData;
+      const aF = ua.mode === "free", bF = ub.mode === "free";
+      if (!aF && !bF) continue;
+      if (Math.abs(a.position.y - b.position.y) > (ua.kind === "cup" && ub.kind === "cup" ? .1 : .6)) continue;
+      const dx = b.position.x - a.position.x, dz = b.position.z - a.position.z, d = Math.hypot(dx, dz);
+      const min = (ua.r + ub.r) * .85;
+      if (d >= min || d < 1e-4) continue;
+      const nx = dx / d, nz = dz / d, ov = min - d;
+      const ka = aF && bF ? .5 : aF ? 1 : 0, kb = aF && bF ? .5 : bF ? 1 : 0;
+      a.position.x -= nx * ov * ka; a.position.z -= nz * ov * ka;
+      b.position.x += nx * ov * kb; b.position.z += nz * ov * kb;
+      const rv = (ub.vel.x - ua.vel.x) * nx + (ub.vel.z - ua.vel.z) * nz;
+      if (rv < 0) {
+        const imp = -rv * .8;
+        if (aF) { ua.vel.x -= nx * imp * ka * 2; ua.vel.z -= nz * imp * ka * 2; }
+        if (bF) { ub.vel.x += nx * imp * kb * 2; ub.vel.z += nz * imp * kb * 2; }
+        if (imp > 1.5) sKnock(imp * 2);
+      }
+    }
+  }
+  // Холдер в группе: поворот
   if (pf.slot === "group" && held !== pfObj) pfObj.rotation.y = THREE.MathUtils.lerp(pfObj.rotation.y, -THREE.MathUtils.degToRad(pf.angle), .35);
-  else if (held !== pfObj) pfObj.rotation.y = THREE.MathUtils.lerp(pfObj.rotation.y, 0, .3);
+  else if (held !== pfObj && pfObj.userData.mode === "snap") pfObj.rotation.y = THREE.MathUtils.lerp(pfObj.rotation.y, 0, .3);
   // Темпер: нажим
   if (pressing) {
-    tampPress += dt * .55;
-    if (tampPress > 1.3) tampPress = 1.3;
+    tampPress = Math.min(1.3, tampPress + dt * .55);
     tamperObj.userData.target.y = zTamper.pos.y - clamp(tampPress, 0, 1) * .12;
     meter("Нажим темпера", tampPress, 1.3, .65, .92);
   }
-  // Кнопки: нажатие
   for (const [b, z] of btnRest) b.position.z = THREE.MathUtils.lerp(b.position.z, holdAct && b.userData.kind === holdAct ? z + .06 : z, .4);
 
   // Действия по удержанию
   let grinding = false, brewing = false, watering = false, steaming = false, pouring = false;
+  const trayCup = cupIn("tray");
   if (holdAct === "grindBtn") {
     grinding = true;
     if (pf.slot === "grinder" && pf.brewed === 0) {
@@ -1042,27 +1238,28 @@ function update(dt, now) {
     brewing = true;
     const head = new THREE.Vector3(0, 1.72, -.5);
     if (pf.slot === "group" && pf.locked && pf.grounds > 1) {
-      if (pf.brewed === 0) {
-        const dq = 1 - Math.min(1, Math.abs(pf.grounds - 18) / 6);
-        const tq = pf.tamped ? pf.tampQ : .35;
-        cup.extract = clamp(dq * .6 + tq * .4, 0, 1);
-        cup.extractNote = pf.grounds < 15 ? "Водянистый: мало кофе" : pf.grounds > 21 ? "Горький: пересыпали кофе" : !pf.tamped ? "Кислый: забыли темпер" : pf.tampQ < .6 ? "Кислый: слабая утрамбовка" : "Горчит: пережали темпер";
-      } else if (pf.brewed > 45) { cup.extract = Math.max(.2, cup.extract - dt * .2); cup.extractNote = "Пролили через старую таблетку"; }
-      const flow = (pf.tamped ? (pf.tampQ === 1 ? 1 : 1.25) : 1.6) * 8;
-      const ml = flow * dt;
+      const flow = (pf.tamped ? (pf.tampQ === 1 ? 1 : 1.25) : 1.6) * 8, ml = flow * dt;
       pf.brewed += ml;
-      if (cup.slot === "tray") {
-        addToCup("coffee", ml);
-        const tgt = cupTop();
+      if (trayCup) {
+        const st = trayCup.userData.st;
+        if (st.coffee === 0) {
+          const dq = 1 - Math.min(1, Math.abs(pf.grounds - 18) / 6), tq = pf.tamped ? pf.tampQ : .35;
+          st.extract = clamp(dq * .6 + tq * .4, 0, 1);
+          st.extractNote = pf.grounds < 15 ? "Водянистый: мало кофе" : pf.grounds > 21 ? "Горький: пересыпали кофе" : !pf.tamped ? "Кислый: забыли темпер" : pf.tampQ < .6 ? "Кислый: слабая утрамбовка" : "Горчит: пережали темпер";
+          if (pf.brewed > 45) { st.extract = .2; st.extractNote = "Пролили через старую таблетку"; }
+        }
+        addToCup(trayCup, "coffee", ml);
+        const tgt = cupTop(trayCup);
         setStream(stCoffee1, head.clone().add(new THREE.Vector3(-.08, 0, 0)), tgt.clone().add(new THREE.Vector3(-.06, 0, 0)));
         setStream(stCoffee2, head.clone().add(new THREE.Vector3(.08, 0, 0)), tgt.clone().add(new THREE.Vector3(.06, 0, 0)));
+        meter("Пролив: " + Math.round(trayCup.userData.st.coffee) + " мл", trayCup.userData.st.coffee, 60, 26, 34);
       } else {
         setStream(stCoffee1, head, new THREE.Vector3(0, .17, -.45)); stCoffee2.visible = false;
+        meter("Кофе льётся на поддон: нет кружки!", 0, 1, 0, 0);
       }
-      meter("Пролив: " + Math.round(cup.coffee) + " мл", cup.coffee, 60, 26, 34);
     } else {
       stCoffee1.visible = stCoffee2.visible = false;
-      if (pf.slot !== "group") { setStream(stWater, new THREE.Vector3(0, 2.0, -.5), new THREE.Vector3(0, .17, -.45)); }
+      if (pf.slot !== "group") setStream(stWater, new THREE.Vector3(0, 2.0, -.5), new THREE.Vector3(0, .17, -.45));
       meter(pf.slot !== "group" ? "Из группы льётся вода. Нет холдера!" : !pf.locked ? "Холдер не закреплён" : "В холдере нет кофе", 0, 1, 0, 0);
     }
     needle.rotation.z = THREE.MathUtils.lerp(needle.rotation.z, -1.6, .1);
@@ -1070,7 +1267,7 @@ function update(dt, now) {
 
   if (holdAct === "waterBtn") {
     watering = true;
-    if (cup.slot === "tray") { addToCup("water", dt * 28); setStream(stWater, WATER_TIP, cupTop()); }
+    if (trayCup) { addToCup(trayCup, "water", dt * 28); setStream(stWater, WATER_TIP, cupTop(trayCup)); }
     else setStream(stWater, WATER_TIP, new THREE.Vector3(.78, .17, -.45));
     const tgtW = order() && order().r.water ? order().r.water : 0;
     meter("Вода: " + Math.round(cup.water) + " мл", cup.water, 150, Math.max(0, tgtW - 15), tgtW + 15);
@@ -1081,61 +1278,57 @@ function update(dt, now) {
     if (Math.random() < .7) puff(STEAM_TIP.clone(), pit.slot === "steam" ? .3 : .08);
     if (pit.slot === "steam" && pit.milk > 15) {
       pit.temp = Math.min(95, pit.temp + dt * 5.5 * clamp(150 / pit.milk, .6, 2));
-      if (pit.temp > 75 && !update._burn) { update._burn = true; toast("Молоко шипит и пахнет горелым!"); }
+      if (pit.temp > 75 && !burnWarned) { burnWarned = true; toast("Молоко шипит и пахнет горелым!"); }
       meter("Молоко: " + Math.round(pit.temp) + "°", pit.temp, 95, 55, 70);
     } else meter(pit.slot === "steam" ? "В питчере нет молока" : "Пар уходит в воздух", 0, 1, 0, 0);
     steamKnob.rotation.y += dt * 3;
-  } else update._burn = pit.temp > 75;
+  } else burnWarned = pit.temp > 75;
 
-  // Наливание: пакет -> питчер, питчер -> чашка
+  // Наливание: пакет в питчер, питчер в кружку
   stMilk.visible = stCarton.visible = false;
-  if (held && (held === cartonObj || held === pitObj)) {
-    const tilt = held.userData.tilt;
-    if (tilt > 40) {
-      pouring = true;
-      const rate = (tilt - 40) / 70;
-      const spout = held === cartonObj ? new THREE.Vector3(-.16, 1.3, 0) : new THREE.Vector3(-.42, .72, 0);
-      const sp = held.localToWorld(spout.clone());
-      if (held === cartonObj) {
-        const over = Math.hypot(held.position.x - pitObj.position.x, held.position.z - pitObj.position.z) < .9;
-        const tgt = over ? pitObj.position.clone().add(new THREE.Vector3(0, .1 + clamp(pit.milk / 350, 0, 1) * .65, 0)) : new THREE.Vector3(sp.x, 0, sp.z);
-        setStream(stCarton, sp, tgt);
-        if (over) { pit.milk = Math.min(350, pit.milk + rate * 60 * dt); if (pit.milk >= 350) warn("Питчер полный!"); pit.temp = Math.min(pit.temp, 30); }
-        else warn("Льёте молоко мимо питчера!");
-        const want = order() && order().r.milk ? order().r.milk : 0;
-        meter("Молоко в питчере: " + Math.round(pit.milk) + " мл", pit.milk, 350, want, want + 60);
-      } else {
-        const over = nearCup(pitObj, .95) && cupObj.visible;
-        setStream(stMilk, sp, over ? cupTop() : new THREE.Vector3(sp.x, 0, sp.z));
-        if (pit.milk > 0) {
-          const ml = Math.min(pit.milk, rate * 45 * dt);
-          pit.milk -= ml;
-          if (over) addToCup("milk", ml, pit.temp);
-          else warn("Пролили молоко на стол!");
-        } else stMilk.visible = false;
-        const want = order() && order().r.milk ? order().r.milk : 0;
-        meter("Молоко в чашке: " + Math.round(cup.milk) + " мл", cup.milk, 220, Math.max(0, want - 25), want + 25);
-      }
+  if (held && (held === cartonObj || held === pitObj) && held.userData.tilt > 40) {
+    pouring = true;
+    const rate = (held.userData.tilt - 40) / 70;
+    const spout = held === cartonObj ? new THREE.Vector3(-.16, 1.3, 0) : new THREE.Vector3(-.42, .72, 0);
+    const sp = held.localToWorld(spout.clone());
+    if (held === cartonObj) {
+      const over = pitObj.visible && Math.hypot(held.position.x - pitObj.position.x, held.position.z - pitObj.position.z) < .9;
+      setStream(stCarton, sp, over ? pitObj.position.clone().add(new THREE.Vector3(0, .1 + clamp(pit.milk / 350, 0, 1) * .65, 0)) : new THREE.Vector3(sp.x, 0, sp.z));
+      if (over) { pit.milk = Math.min(350, pit.milk + rate * 60 * dt); if (pit.milk >= 350) warn("Питчер полный!"); pit.temp = Math.min(pit.temp, 30); }
+      else warn("Льёте молоко мимо питчера!");
+      const want = order() && order().r.milk ? order().r.milk : 0;
+      meter("Молоко в питчере: " + Math.round(pit.milk) + " мл", pit.milk, 350, want, want + 60);
+    } else {
+      const c = nearestCup(pitObj, .95);
+      setStream(stMilk, sp, c ? cupTop(c) : new THREE.Vector3(sp.x, 0, sp.z));
+      if (pit.milk > 0) {
+        const ml = Math.min(pit.milk, rate * 45 * dt);
+        pit.milk -= ml;
+        if (c) addToCup(c, "milk", ml, pit.temp); else warn("Пролили молоко на стол!");
+      } else stMilk.visible = false;
+      const want = order() && order().r.milk ? order().r.milk : 0;
+      const st = c ? c.userData.st : cup;
+      meter("Молоко в кружке: " + Math.round(st.milk) + " мл", st.milk, 220, Math.max(0, want - 25), want + 25);
     }
   }
-  const showMeter = grinding || brewing || watering || steaming || pouring || pressing;
-  if (!showMeter) meterEl.hidden = true;
+  if (!(grinding || brewing || watering || steaming || pouring || pressing)) meterEl.hidden = true;
   sndGrind.set(grinding); sndBrew.set(brewing && pf.slot === "group"); sndSteam.set(steaming); sndPour.set(pouring || watering);
 
-  // Визуал: кофе в холдере, жидкость, молоко
+  // Визуал
   puck.visible = pf.grounds > .2;
   puck.scale.y = clamp(pf.grounds / 18, .05, 1.5) * .22;
   puck.position.y = .02 + puck.scale.y / 2;
   puck.material.color.setHex(pf.brewed > 0 ? 0x1c0f07 : 0x3a2010);
-  const h = liquidH();
-  liquid.visible = h > .005; liquid.scale.y = h; liquid.position.y = .02 + h / 2;
-  liquid.material.color.copy(cupColor());
-  foam.visible = cup.milk > 20 && cup.milkTemp > 50; foam.position.y = .03 + h;
+  for (const c of cups) {
+    const st = c.userData.st, h = liquidH(st), u = c.userData;
+    u.liq.visible = h > .005; u.liq.scale.y = Math.max(h, .001); u.liq.position.y = .02 + h / 2;
+    u.liq.material.color.copy(cupColor(st));
+    u.fm.visible = st.milk > 20 && st.milkTemp > 50; u.fm.position.y = .03 + h;
+    if (c.visible && st.coffee > 10 && Math.random() < dt * 1.5) puff(cupTop(c).add(new THREE.Vector3(0, .1, 0)), .3);
+  }
   pitMilk.visible = pit.milk > 2;
   const ph = clamp(pit.milk / 350, 0, 1) * .68;
   pitMilk.scale.y = Math.max(ph, .001); pitMilk.position.y = .02 + ph / 2;
-  // Пар над горячей чашкой
-  if (cupObj.visible && cup.coffee > 10 && Math.random() < dt * 2) puff(cupTop().add(new THREE.Vector3(0, .1, 0)), .3);
   for (const s of puffs) {
     if (!s.visible) continue;
     s.userData.life -= dt * .9;
@@ -1144,7 +1337,6 @@ function update(dt, now) {
     s.material.opacity = Math.max(0, s.userData.life * .55);
     if (s.userData.life <= 0) s.visible = false;
   }
-  // Зоны: подсветка
   const t = now / 1000;
   for (const z of zones) {
     const show = held && held.userData.kind === z.kind && z.ok();
@@ -1155,13 +1347,12 @@ function update(dt, now) {
       z.ring.scale.setScalar(1 + Math.sin(t * 6) * .06 + (near ? .12 : 0));
     }
   }
-  // Кофемолка дрожит
-  if (grinding) hopper.position.x = GRIND.x + Math.sin(t * 90) * .015; else hopper.position.x = GRIND.x;
-  // Терпение
+  hopper.position.x = grinding ? GRIND.x + Math.sin(t * 90) * .015 : GRIND.x;
   if (G.running && !G.serving && order() && (now - order().t0) / 1000 > G.patience) walkOut();
 }
 function loop() {
-  timer.update(); const dt = Math.min(timer.getDelta(), .12), now = performance.now();
+  timer.update();
+  const dt = Math.min(timer.getDelta(), .12), now = performance.now();
   update(dt, now);
   hud(now); tooltip();
   renderer.render(scene, camera);
@@ -1188,15 +1379,23 @@ function start() {
   audio();
   $("#startScreen").hidden = true; $("#endScreen").hidden = true;
   $("#stScore").textContent = "0 очков";
-  pf.grounds = 0; pf.tamped = false; pf.used = false; pf.brewed = 0; pf.slot = "free"; pf.angle = 0; pf.locked = false;
-  pfObj.userData.target.copy(pfObj.userData.home);
-  pit.milk = 0; pit.temp = 6; pit.slot = "free"; pitObj.userData.target.copy(pitObj.userData.home);
-  tamperOn = false; tamperObj.userData.target.copy(tamperObj.userData.home);
+  Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 });
+  Object.assign(pit, { milk: 0, temp: 6, slot: "free" });
+  tamperOn = false;
+  for (const o of draggables) {
+    if (o.userData.kind === "cup") continue;
+    o.userData.mode = "free"; o.userData.lost = false; o.visible = true; o.position.copy(o.userData.home); o.userData.vel.set(0, 0, 0);
+  }
+  cups.forEach((c, i) => {
+    c.userData.st = freshCupState(); c.userData.mode = "free"; c.userData.lost = false; c.visible = true;
+    c.position.copy(STACK).add(new THREE.Vector3(0, i * NEST, 0)); c.userData.vel.set(0, 0, 0); c.rotation.set(0, 0, 0);
+  });
+  lastCup = cups[cups.length - 1];
   newShift();
 }
 $("#startBtn").addEventListener("click", start);
 $("#againBtn").addEventListener("click", start);
-window.__coffee = { renderer, G, pf, cup, pit, zones, camera, draggables, objs: { pfObj, tamperObj, cupObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn } };
+window.__coffee = { renderer, G, pf, pit, cups, zones, camera, draggables, objs: { pfObj, tamperObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn }, get cup() { return cup; }, get held() { return held; } };
 </script>
 </body>
 </html>

@@ -574,6 +574,9 @@
   // Пример: "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.app"
   var DB_URL = "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.app";
 
+  // Адрес скрипта Google Apps Script, который пересылает жалобы в Telegram. Пусто: уведомления выключены.
+  var NOTIFY_URL = "https://script.google.com/macros/s/AKfycbwUZxFcQNkgO26i-Yc2qLJQYgYDL_HIYcPJLTJ9FqXud9g4u8adz25WWPWDu7jNPtnMrg/exec";
+
   // Директор. Его нельзя уволить или понизить: он задан здесь, а не в базе.
   var DIRECTOR = { name: "Никитка", role: "Директор по ничегонеделанию" };
 
@@ -1017,6 +1020,12 @@
     var btn = this.querySelector("button");
     if (!text) { ta.focus(); return; }
     function accept() {
+      if (/^https:\/\/script\.google\.com\//.test(NOTIFY_URL)) {
+        try {
+          fetch(NOTIFY_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ text: text }) })
+            .catch(function () {});
+        } catch (err) {}
+      }
       complaints.unshift({ text: text, v: pick(VERDICTS) });
       complaints = complaints.slice(0, 5);
       store.set("complaints", complaints);

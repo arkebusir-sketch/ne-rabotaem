@@ -448,13 +448,26 @@ const SHAPES = {
 const cupMat = new CANNON.Material("cup");
 world.addContactMaterial(new CANNON.ContactMaterial(cupMat, cupMat, { friction: .02, restitution: 0 }));
 const MASS = { cup: .35, pitcher: .6, portafilter: .7, tamper: .9, carton: .5, spoon: .12, sugar: .03 };
+// Центр масс в середине предмета (а не в дне), чтобы упавшее не вставало само, как неваляшка
+const COM = { cup: V(0, .34, 0), pitcher: V(0, .32, 0), portafilter: V(0, .1, .22), tamper: V(0, .36, 0), carton: V(0, .6, 0), spoon: V(0, .03, .45), sugar: V(0, 0, 0) };
+const _cv = new CANNON.Vec3();
+// Положение «точки опоры» (дна) предмета по телу и обратно
+function basePos(b, out = new THREE.Vector3()) {
+  b.quaternion.vmult(b.com || V(0, 0, 0), _cv);
+  return out.set(b.position.x - _cv.x, b.position.y - _cv.y, b.position.z - _cv.z);
+}
+function setBase(b, x, y, z) {
+  b.quaternion.vmult(b.com || V(0, 0, 0), _cv);
+  b.position.set(x + _cv.x, y + _cv.y, z + _cv.z);
+}
 let lastKnockT = 0;
 function addBody(o) {
   const u = o.userData;
   const b = new CANNON.Body({ mass: MASS[u.kind], linearDamping: .05, angularDamping: .2, allowSleep: true, sleepSpeedLimit: .12, sleepTimeLimit: .5, material: u.kind === "cup" ? cupMat : undefined });
-  SHAPES[u.kind]().forEach(([s, off, q]) => b.addShape(s, off, q));
-  b.position.set(o.position.x, o.position.y, o.position.z);
+  b.com = COM[u.kind];
+  SHAPES[u.kind]().forEach(([s, off, q]) => b.addShape(s, off.vsub(b.com), q));
   b.quaternion.set(o.quaternion.x, o.quaternion.y, o.quaternion.z, o.quaternion.w);
+  setBase(b, o.position.x, o.position.y, o.position.z);
   b.addEventListener("collide", (e) => {
     let v = 0;
     try { v = Math.abs(e.contact.getImpactVelocityAlongNormal()); } catch (err) {}
@@ -771,13 +784,13 @@ function setMode(o, mode) {
 }
 // Кинематическое тело тянем к цели скоростью: так оно толкает и несёт то, что на нём лежит
 function drive(o, pos, euler, k = 16, cap = 30) {
-  const b = o.userData.body;
-  const v = new THREE.Vector3((pos.x - b.position.x) * k, (pos.y - b.position.y) * k, (pos.z - b.position.z) * k);
+  const b = o.userData.body, bp = basePos(b);
+  const v = new THREE.Vector3((pos.x - bp.x) * k, (pos.y - bp.y) * k, (pos.z - bp.z) * k);
   if (v.length() > cap) v.setLength(cap);
   b.velocity.set(v.x, v.y, v.z);
   if (euler) {
     tmpQ.setFromEuler(euler);
-    tmpQ2.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w).slerp(tmpQ, .35);
+    tmpQ2.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w).slerp(tmpQ, o.userData.mode === "held" ? .2 : .35);
     b.quaternion.set(tmpQ2.x, tmpQ2.y, tmpQ2.z, tmpQ2.w);
   }
   b.angularVelocity.set(0, 0, 0);
@@ -814,8 +827,8 @@ function respawn(o) {
   if (u.kind === "cup") u.st = freshCupState();
   u.lost = false; o.visible = true;
   const top = u.kind === "cup" ? 2.6 : 2.2;
-  b.position.set(u.home.x, u.home.y + top, u.home.z);
-  b.quaternion.set(0, 0, 0, 1); b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
+  b.quaternion.set(0, 0, 0, 1); setBase(b, u.home.x, u.home.y + top, u.home.z);
+  b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
   if (!world.bodies.includes(b)) world.addBody(b);
   setMode(o, "free");
   for (let i = 0; i < 5; i++) puff(new THREE.Vector3(b.position.x, b.position.y, b.position.z), .5);
@@ -993,9 +1006,9 @@ function drop() {
   }
   if (k === "spoon" && stirCup && speed < 6) {
     const c = stirCup, b = o.userData.body; stirCup = null;
-    b.position.set(c.position.x, c.position.y + .22, c.position.z);
     tmpQ.setFromEuler(new THREE.Euler(-Math.PI / 2 + .15, (o.userData.stirA || 0), 0, "YXZ"));
     b.quaternion.set(tmpQ.x, tmpQ.y, tmpQ.z, tmpQ.w);
+    setBase(b, c.position.x, c.position.y + .22, c.position.z);
     release(o, new THREE.Vector3()); return;
   }
   if (k === "tamper" && z) { tamperOn = true; snap(o, z.pos); sClick(); return; }
@@ -1003,7 +1016,7 @@ function drop() {
     if (z.id === "knock") {
       Object.assign(pf, { grounds: 0, tamped: false, brewed: 0, tampQ: 0, slot: "free" });
       sThunk(); toast("Бах! Холдер чистый.");
-      setMode(o, "free"); o.userData.body.position.set(-4.2, 1.2, -.2); o.userData.body.velocity.set(0, 0, 0); return;
+      setMode(o, "free"); o.userData.body.quaternion.set(0, 0, 0, 1); setBase(o.userData.body, -4.2, 1.2, -.2); o.userData.body.velocity.set(0, 0, 0); return;
     }
     snap(o, z.pos); pf.slot = z.id; sClick();
     if (z.id === "group") { pf.angle = 0; pf.locked = false; toast("Теперь зажмите ПКМ на холдере и ведите вправо."); }
@@ -1255,7 +1268,7 @@ function update(dt, now) {
   for (const o of live) {
     const b = o.userData.body;
     if (!b || !o.visible) continue;
-    o.position.set(b.position.x, b.position.y, b.position.z);
+    basePos(b, o.position);
     o.quaternion.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
     if (o.userData.mode === "free" && b.position.y < -3) lose(o);
   }
@@ -1454,8 +1467,8 @@ function start() {
     const u = o.userData, b = u.body;
     u.lost = false; o.visible = true;
     if (!world.bodies.includes(b)) world.addBody(b);
-    b.position.set(pos.x, pos.y, pos.z);
     b.quaternion.setFromEuler(0, o === spoonObj ? .5 : 0, 0, "YXZ");
+    setBase(b, pos.x, pos.y, pos.z);
     b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
     setMode(o, "free");
   };

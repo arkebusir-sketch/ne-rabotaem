@@ -110,7 +110,7 @@
   }
 </style>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js" } }
 </script>
 </head>
 <body>
@@ -192,6 +192,7 @@
 
 <script type="module">
 import * as THREE from "three";
+import * as CANNON from "cannon-es";
 
 /* ================= Общие настройки ================= */
 const DB_URL = "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.app";
@@ -413,6 +414,58 @@ const BOXES = [
 ];
 const GRINDER_CYL = { x: GRIND.x, z: GRIND.z, r: .8, top: 3.8 };
 
+/* ================= Физический мир ================= */
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -22, 0) });
+world.broadphase = new CANNON.SAPBroadphase(world);
+world.allowSleep = true;
+world.solver.iterations = 14;
+world.defaultContactMaterial.friction = .5;
+world.defaultContactMaterial.restitution = .12;
+world.defaultContactMaterial.contactEquationStiffness = 5e6;
+world.defaultContactMaterial.contactEquationRelaxation = 4;
+const V = (x, y, z) => new CANNON.Vec3(x, y, z);
+function staticBody(shape, x, y, z) { const b = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC }); b.addShape(shape); b.position.set(x, y, z); world.addBody(b); return b; }
+// Стенки сосуда из наклонных пластин: снизу радиус rBot, сверху rTop
+function ringWalls(rBot, rTop, h, n, thick) {
+  const parts = [], tilt = Math.atan2(rTop - rBot, h), slant = Math.hypot(h, rTop - rBot);
+  const rc = (rBot + rTop) / 2, w = Math.PI * Math.max(rBot, rTop) / n * 1.1;
+  for (let i = 0; i < n; i++) {
+    const th = i / n * Math.PI * 2;
+    const q = new CANNON.Quaternion().setFromEuler(tilt, th, 0, "YXZ");
+    parts.push([new CANNON.Box(V(w, slant / 2, thick / 2)), V(Math.sin(th) * rc, h / 2, Math.cos(th) * rc), q]);
+  }
+  return parts;
+}
+const SHAPES = {
+  cup: () => [[new CANNON.Cylinder(.3, .3, .05, 12), V(0, .025, 0)]].concat(ringWalls(.33, .43, .85, 12, .04)),
+  pitcher: () => [[new CANNON.Cylinder(.36, .36, .05, 12), V(0, .025, 0)]].concat(ringWalls(.38, .31, .75, 12, .04)),
+  portafilter: () => [[new CANNON.Cylinder(.38, .38, .05, 12), V(0, .025, 0)]].concat(ringWalls(.4, .42, .28, 10, .04), [[new CANNON.Box(V(.08, .08, .55)), V(0, .2, .95)]]),
+  tamper: () => [[new CANNON.Cylinder(.35, .35, .16, 14), V(0, .08, 0)], [new CANNON.Cylinder(.2, .15, .62, 10), V(0, .47, 0)], [new CANNON.Sphere(.22), V(0, .82, 0)]],
+  carton: () => [[new CANNON.Box(V(.275, .7, .275)), V(0, .7, 0)]],
+  spoon: () => [[new CANNON.Box(V(.07, .03, .6)), V(0, .03, .45)]],
+  sugar: () => [[new CANNON.Box(V(.08, .08, .08)), V(0, 0, 0)]]
+};
+const cupMat = new CANNON.Material("cup");
+world.addContactMaterial(new CANNON.ContactMaterial(cupMat, cupMat, { friction: .02, restitution: 0 }));
+const MASS = { cup: .35, pitcher: .6, portafilter: .7, tamper: .9, carton: .5, spoon: .12, sugar: .03 };
+let lastKnockT = 0;
+function addBody(o) {
+  const u = o.userData;
+  const b = new CANNON.Body({ mass: MASS[u.kind], linearDamping: .05, angularDamping: .2, allowSleep: true, sleepSpeedLimit: .12, sleepTimeLimit: .5, material: u.kind === "cup" ? cupMat : undefined });
+  SHAPES[u.kind]().forEach(([s, off, q]) => b.addShape(s, off, q));
+  b.position.set(o.position.x, o.position.y, o.position.z);
+  b.quaternion.set(o.quaternion.x, o.quaternion.y, o.quaternion.z, o.quaternion.w);
+  b.addEventListener("collide", (e) => {
+    let v = 0;
+    try { v = Math.abs(e.contact.getImpactVelocityAlongNormal()); } catch (err) {}
+    const t = performance.now();
+    if (v > 2.2 && t - lastKnockT > 45) { lastKnockT = t; sKnock(v * 1.2); }
+    if (u.kind === "cup" && v > 7) splash(o, v);
+  });
+  world.addBody(b); u.body = b; u.mode = "free";
+  return b;
+}
+
 /* ================= Перетаскиваемые предметы ================= */
 const draggables = [];
 const SIZES = {
@@ -456,7 +509,7 @@ const tamperObj = new THREE.Group();
 makeDraggable(tamperObj, "tamper", "Темпер", new THREE.Vector3(-1.8, 0, 1.95), .35);
 // Кружки
 const STACK = new THREE.Vector3(-5.2, 0, 1.3);
-const NEST = .22;
+const NEST = .34;
 const cups = [];
 function freshCupState() {
   return { slot: "free", coffee: 0, water: 0, milk: 0, milkTemp: 0, sugar: 0, stirs: 0, spilled: false, extract: 1, extractNote: "" };
@@ -488,7 +541,7 @@ const cartonObj = new THREE.Group();
   const roof = new THREE.Mesh(new THREE.CylinderGeometry(0, .39, .3, 4, 1), CHALK); roof.rotation.y = Math.PI / 4; roof.position.y = 1.25; cartonObj.add(roof);
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .08, 12), M(0xe0301e)); cap.position.set(-.16, 1.3, 0); cartonObj.add(cap);
 }
-makeDraggable(cartonObj, "carton", "Пакет молока", new THREE.Vector3(3.6, 0, .95), .38);
+makeDraggable(cartonObj, "carton", "Пакет молока", new THREE.Vector3(3.5, 0, .75), .38);
 // Питчер
 const pitObj = new THREE.Group();
 {
@@ -521,6 +574,14 @@ sugarBowl.position.set(4.5, 0, -.5); sugarBowl.traverse((o) => { if (o.isMesh) o
 sugarBowl.userData = { kind: "sugarbowl", name: "Сахарница" };
 label("САХАР", 4.5, .25, -.02, .6, .18, "#0e1330", "#fbfaf5");
 BOXES.push({ x0: 4.0, x1: 5.0, z0: -1.0, z1: 0, top: .5 });
+// Статичные коллайдеры: стол, стена, оборудование
+staticBody(new CANNON.Box(V(6.5, .2, 3.2)), 0, -.2, -.1);
+staticBody(new CANNON.Box(V(9, 6, .1)), 0, 5, -3.42);
+for (const b of BOXES) staticBody(new CANNON.Box(V((b.x1 - b.x0) / 2, b.top / 2, (b.z1 - b.z0) / 2)), (b.x0 + b.x1) / 2, b.top / 2, (b.z0 + b.z1) / 2);
+staticBody(new CANNON.Cylinder(.8, .8, 3.8, 16), GRIND.x, 1.9, GRIND.z);
+staticBody(new CANNON.Cylinder(.5, .5, .32, 16), 0, 2.2, -.5);
+staticBody(new CANNON.Box(V(.25, .14, .2)), 0, 2.3, -.68);
+for (const o of draggables) addBody(o);
 
 /* ================= Зоны ================= */
 const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd21f, transparent: true, opacity: .9 });
@@ -648,7 +709,7 @@ function serve(c) {
   sDing();
   setTimeout(() => {
     // Коллега уносит кружку, через 2 секунды чистая появляется в стопке
-    c.userData.mode = "carry"; c.userData.target.set(8, 1.2, SERVE.z);
+    setMode(c, "carry"); c.userData.target.set(8, 1.2, SERVE.z); c.userData.euler = new THREE.Euler(0, 0, 0, "YXZ");
     setTimeout(() => respawn(c), RESPAWN_MS);
   }, 900);
   setTimeout(() => {
@@ -698,97 +759,33 @@ function endShift() {
 }
 
 /* ================= Физика ================= */
-const GRAV = 26;
 const UP = new THREE.Vector3(0, 1, 0);
-function onCounter(p) { return p.x > COUNTER.x0 && p.x < COUNTER.x1 && p.z > COUNTER.z0 && p.z < COUNTER.z1; }
-function supportY(o, prevY) {
-  const p = o.position, u = o.userData, r = u.r * .5;
-  let g = onCounter(p) ? 0 : -Infinity, on = null;
-  for (const b of BOXES) {
-    if (p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r && prevY >= b.top - .12) g = Math.max(g, b.top);
-  }
-  const dx = p.x - GRINDER_CYL.x, dz = p.z - GRINDER_CYL.z;
-  if (Math.hypot(dx, dz) < GRINDER_CYL.r && prevY >= GRINDER_CYL.top - .12) g = Math.max(g, GRINDER_CYL.top);
-  for (const b of draggables) {
-    const ub = b.userData;
-    if (b === o || !b.visible || ub.mode === "carry" || ub.mode === "gone" || ub.on === o) continue;
-    const d = Math.hypot(b.position.x - p.x, b.position.z - p.z);
-    let surf = -Infinity;
-    if (u.kind === "cup" && ub.kind === "cup") {
-      if (d < .3 && b.position.y < prevY - .05) surf = b.position.y + NEST;
-    } else if (ub.inner && u.r <= ub.inner && d < ub.inner - u.r * .4 + .04) {
-      surf = b.position.y + ub.floor;           // помещается: ложится внутрь
-    } else if (d < ub.r * .9 + u.r * .35) {
-      surf = b.position.y + ub.h;               // не помещается: лежит сверху
-    }
-    if (surf > g && prevY >= surf - .12) { g = surf; on = b; }
-  }
-  u.on = on;
-  return g;
+const tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion();
+function setMode(o, mode) {
+  const u = o.userData, b = u.body; u.mode = mode;
+  if (!b) return;
+  if (mode === "free") { b.type = CANNON.Body.DYNAMIC; }
+  else { b.type = CANNON.Body.KINEMATIC; b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0); }
+  b.collisionResponse = true;
+  b.updateMassProperties(); b.wakeUp();
 }
-function collide(o, prev) {
-  const p = o.position, v = o.userData.vel, r = o.userData.r;
-  if (p.z < COUNTER.z0 + r && p.y < 8) { p.z = COUNTER.z0 + r; v.z = Math.abs(v.z) * .4; }
-  for (const b of BOXES) {
-    if (b.top < .3) continue;
-    const inside = p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r && p.y < b.top - .12;
-    if (!inside) continue;
-    // выталкиваем по ближайшей стороне
-    const dl = p.x - (b.x0 - r), dr = (b.x1 + r) - p.x, df = (b.z1 + r) - p.z, db = p.z - (b.z0 - r);
-    const m = Math.min(dl, dr, df, db);
-    if (m === df) { p.z = b.z1 + r; v.z = Math.abs(v.z) * .35; }
-    else if (m === db) { p.z = b.z0 - r; v.z = -Math.abs(v.z) * .35; }
-    else if (m === dl) { p.x = b.x0 - r; v.x = -Math.abs(v.x) * .35; }
-    else { p.x = b.x1 + r; v.x = Math.abs(v.x) * .35; }
-    if (Math.abs(v.x) + Math.abs(v.z) > 2) sKnock(Math.abs(v.x) + Math.abs(v.z));
+// Кинематическое тело тянем к цели скоростью: так оно толкает и несёт то, что на нём лежит
+function drive(o, pos, euler, k = 16, cap = 30) {
+  const b = o.userData.body;
+  const v = new THREE.Vector3((pos.x - b.position.x) * k, (pos.y - b.position.y) * k, (pos.z - b.position.z) * k);
+  if (v.length() > cap) v.setLength(cap);
+  b.velocity.set(v.x, v.y, v.z);
+  if (euler) {
+    tmpQ.setFromEuler(euler);
+    tmpQ2.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w).slerp(tmpQ, .35);
+    b.quaternion.set(tmpQ2.x, tmpQ2.y, tmpQ2.z, tmpQ2.w);
   }
-  const dx = p.x - GRINDER_CYL.x, dz = p.z - GRINDER_CYL.z, d = Math.hypot(dx, dz);
-  if (d < GRINDER_CYL.r + r && p.y < GRINDER_CYL.top - .12 && d > .001) {
-    const nx = dx / d, nz = dz / d;
-    p.x = GRINDER_CYL.x + nx * (GRINDER_CYL.r + r); p.z = GRINDER_CYL.z + nz * (GRINDER_CYL.r + r);
-    const vn = v.x * nx + v.z * nz;
-    if (vn < 0) { v.x -= 1.4 * vn * nx; v.z -= 1.4 * vn * nz; sKnock(-vn); }
-  }
-}
-function restsOn(a, b) {
-  for (let o = a.userData.on, i = 0; o && i < 8; o = o.userData.on, i++) if (o === b) return true;
-  return false;
-}
-function wrapAngle(a) { a = a % (Math.PI * 2); if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; }
-function stepPhysics(o, dt) {
-  const u = o.userData, v = u.vel;
-  const prevY = o.position.y;
-  v.y -= GRAV * dt;
-  o.position.addScaledVector(v, dt);
-  collide(o, prevY);
-  const g = supportY(o, prevY);
-  let grounded = false;
-  if (o.position.y <= g) {
-    o.position.y = g;
-    if (v.y < -4) {
-      sKnock(-v.y);
-      if (o.userData.kind === "cup" && -v.y > 9) splash(o, -v.y);
-      v.y = -v.y * .3;
-      u.spin.multiplyScalar(.6);
-    } else { v.y = 0; grounded = true; }
-    v.x *= Math.exp(-dt * 8); v.z *= Math.exp(-dt * 8);
-  }
-  u.grounded = grounded;
-  if (grounded) {
-    u.spin.multiplyScalar(Math.exp(-dt * 12));
-    o.rotation.x = THREE.MathUtils.lerp(wrapAngle(o.rotation.x), 0, 1 - Math.exp(-dt * 12));
-    o.rotation.z = THREE.MathUtils.lerp(wrapAngle(o.rotation.z), 0, 1 - Math.exp(-dt * 12));
-    if (v.lengthSq() < .01) u.rest += dt; else u.rest = 0;
-  } else {
-    o.rotation.x += u.spin.x * dt; o.rotation.y += u.spin.y * dt; o.rotation.z += u.spin.z * dt;
-    u.rest = 0;
-  }
-  if (o.position.y < -3.5 && !u.lost) lose(o);
+  b.angularVelocity.set(0, 0, 0);
 }
 function splash(c, speed) {
   const st = c.userData.st, tot = st.coffee + st.water + st.milk;
   if (tot < 5) return;
-  const k = clamp((speed - 9) / 10 + .3, .3, .8);
+  const k = clamp((speed - 7) / 10 + .3, .3, .8);
   st.coffee *= 1 - k; st.water *= 1 - k; st.milk *= 1 - k; st.spilled = true;
   for (let i = 0; i < 8; i++) puff(c.position.clone().add(new THREE.Vector3(0, .6, 0)), .6);
   warn("Плюх! Кофе расплескался по стойке.");
@@ -802,29 +799,37 @@ const LOST_MSG = {
   spoon: "Ложка улетела. Ложек у нас много."
 };
 function lose(o) {
-  const u = o.userData; u.lost = true; u.mode = "gone"; o.visible = false;
+  const u = o.userData;
   if (u.kind === "sugar") { removeSugar(o); return; }
+  u.lost = true; u.mode = "gone"; o.visible = false;
+  world.removeBody(u.body);
   sCrash(); toast(LOST_MSG[u.kind] || "Улетело!");
-  if (u.kind === "portafilter") { Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 }); if (tamperOn) { tamperOn = false; tamperObj.userData.mode = "free"; } }
+  if (u.kind === "portafilter") { Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 }); if (tamperOn) { tamperOn = false; setMode(tamperObj, "free"); } }
   if (u.kind === "pitcher") { pit.milk = 0; pit.temp = 6; pit.slot = "free"; }
   if (u.kind === "tamper") tamperOn = false;
   setTimeout(() => respawn(o), RESPAWN_MS);
 }
 function respawn(o) {
-  const u = o.userData;
-  if (u.kind === "cup") { u.st = freshCupState(); o.scale.setScalar(1); }
-  u.lost = false; u.mode = "free"; o.visible = true;
-  o.position.copy(u.home).add(new THREE.Vector3(0, u.kind === "cup" ? 3.2 : 2.4, 0));
-  o.rotation.set(0, u.kind === "spoon" ? .5 : 0, 0);
-  u.vel.set(0, 0, 0); u.spin.set(0, 0, 0); u.rest = 0;
-  for (let i = 0; i < 5; i++) puff(o.position.clone(), .5);
+  const u = o.userData, b = u.body;
+  if (u.kind === "cup") u.st = freshCupState();
+  u.lost = false; o.visible = true;
+  const top = u.kind === "cup" ? 2.6 : 2.2;
+  b.position.set(u.home.x, u.home.y + top, u.home.z);
+  b.quaternion.set(0, 0, 0, 1); b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
+  if (!world.bodies.includes(b)) world.addBody(b);
+  setMode(o, "free");
+  for (let i = 0; i < 5; i++) puff(new THREE.Vector3(b.position.x, b.position.y, b.position.z), .5);
 }
-function snap(o, pos) { const u = o.userData; u.mode = "snap"; u.target.copy(pos); u.vel.set(0, 0, 0); u.spin.set(0, 0, 0); }
+function snap(o, pos, euler) {
+  setMode(o, "snap");
+  o.userData.target.copy(pos);
+  o.userData.euler = euler || new THREE.Euler(0, o.userData.kind === "spoon" ? .5 : 0, 0, "YXZ");
+}
 function release(o, vel) {
-  const u = o.userData; u.mode = "free"; u.vel.copy(vel);
-  const sp = Math.hypot(vel.x, vel.z);
-  if (sp > 4) u.vel.y = Math.max(u.vel.y, sp * .28);
-  u.spin.set(vel.z * .9, (Math.random() - .5) * sp * .4, -vel.x * .9);
+  setMode(o, "free");
+  const b = o.userData.body, sp = Math.hypot(vel.x, vel.z);
+  b.velocity.set(vel.x, Math.max(vel.y, sp > 4 ? sp * .25 : 0), vel.z);
+  if (sp > 3) b.angularVelocity.set(vel.z * 1.1, (Math.random() - .5) * sp * .3, -vel.x * 1.1);
   if (sp > 9) sClick();
 }
 
@@ -915,14 +920,21 @@ function grab(o) {
   const k = o.userData.kind;
   if (k === "portafilter") {
     if (pf.slot === "group" && pf.angle > 12) { toast("Сначала открутите холдер: зажмите ПКМ и ведите влево."); return; }
-    if (pf.slot === "tamp" && tamperOn) { tamperOn = false; tamperObj.userData.mode = "free"; tamperObj.userData.vel.set(0, 2, 0); }
+    if (pf.slot === "tamp" && tamperOn) { tamperOn = false; setMode(tamperObj, "free"); }
     pf.slot = "free"; pf.angle = 0; pf.locked = false;
   }
   if (k === "cup") { o.userData.st.slot = "free"; lastCup = o; }
   if (k === "pitcher") pit.slot = "free";
   if (k === "tamper") tamperOn = false;
   if (k === "spoon") { stirAcc = 0; stirLast = null; stirCup = null; }
-  held = o; o.userData.tilt = 0; o.userData.mode = "held";
+  held = o; o.userData.tilt = 0;
+  setMode(o, "held");
+  const e = new THREE.Euler().setFromQuaternion(o.quaternion, "YXZ");
+  o.userData.yaw = k === "spoon" ? .5 : e.y;
+  // Сначала поднимаем вверх, пока предмет не выйдет из того, во что вложен
+  o.userData.liftY = Math.max(1.35, o.position.y + 1.0);
+  o.userData.startXZ = new THREE.Vector2(o.position.x, o.position.z);
+  o.userData.cleared = o.position.y < .3 && k !== "cup";
   trail.length = 0;
   document.body.classList.add("holding");
   sClick();
@@ -930,9 +942,10 @@ function grab(o) {
 function grabSugar() {
   sugarCube = new THREE.Mesh(new THREE.BoxGeometry(.16, .16, .16), CHALK);
   sugarCube.castShadow = true;
-  sugarCube.position.set(4.5, .6, -.5);
+  sugarCube.position.set(4.5, .7, -.5);
   sugarCube.userData = Object.assign({ kind: "sugar", name: "Сахар", target: new THREE.Vector3(4.5, 1.3, -.5), tilt: 0, mode: "held", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r: .1, rest: 0, on: null, prev: new THREE.Vector3(4.5, .6, -.5), grounded: false, born: performance.now() }, SIZES.sugar);
   scene.add(sugarCube); sugars.push(sugarCube); held = sugarCube; trail.length = 0;
+  addBody(sugarCube); setMode(sugarCube, "held"); Object.assign(sugarCube.userData, { yaw: 0, liftY: 1.35, cleared: true, startXZ: new THREE.Vector2(4.5, -.5) });
   while (sugars.length > 30) removeSugar(sugars[0]);
   document.body.classList.add("holding");
   sClick();
@@ -969,20 +982,28 @@ function releaseVel() {
 function drop() {
   const o = held; held = null;
   document.body.classList.remove("holding");
-  const k = o.userData.kind, vel = releaseVel(), speed = vel.length(), z = speed < 6 ? nearest(o) : null;
+  const k = o.userData.kind, vel = releaseVel(), speed = vel.length();
+  const aim = { position: o.userData.cleared ? o.userData.target : o.position, userData: o.userData };
+  const z = speed < 6 ? nearest(aim) : null;
   o.userData.tilt = 0;
   if (k === "sugar") {
     const c = nearestCup(o, .55);
     if (c && speed < 6) { sugarInto(c, o); return; }
     sugarCube = null; release(o, vel); return;
   }
-  if (k === "spoon" && stirCup && speed < 6) { stirCup = null; release(o, new THREE.Vector3()); return; }
+  if (k === "spoon" && stirCup && speed < 6) {
+    const c = stirCup, b = o.userData.body; stirCup = null;
+    b.position.set(c.position.x, c.position.y + .22, c.position.z);
+    tmpQ.setFromEuler(new THREE.Euler(-Math.PI / 2 + .15, (o.userData.stirA || 0), 0, "YXZ"));
+    b.quaternion.set(tmpQ.x, tmpQ.y, tmpQ.z, tmpQ.w);
+    release(o, new THREE.Vector3()); return;
+  }
   if (k === "tamper" && z) { tamperOn = true; snap(o, z.pos); sClick(); return; }
   if (k === "portafilter" && z) {
     if (z.id === "knock") {
       Object.assign(pf, { grounds: 0, tamped: false, brewed: 0, tampQ: 0, slot: "free" });
       sThunk(); toast("Бах! Холдер чистый.");
-      o.userData.mode = "free"; o.position.set(-4.2, 1.2, -.2); o.userData.vel.set(0, 0, 0); return;
+      setMode(o, "free"); o.userData.body.position.set(-4.2, 1.2, -.2); o.userData.body.velocity.set(0, 0, 0); return;
     }
     snap(o, z.pos); pf.slot = z.id; sClick();
     if (z.id === "group") { pf.angle = 0; pf.locked = false; toast("Теперь зажмите ПКМ на холдере и ведите вправо."); }
@@ -998,6 +1019,7 @@ function drop() {
 }
 function removeSugar(cube) {
   cube.userData.mode = "gone"; scene.remove(cube);
+  if (cube.userData.body) world.removeBody(cube.userData.body);
   const i = sugars.indexOf(cube); if (i >= 0) sugars.splice(i, 1);
   if (sugarCube === cube) sugarCube = null;
   if (held === cube) { held = null; document.body.classList.remove("holding"); }
@@ -1159,102 +1181,107 @@ function update(dt, now) {
   camera.lookAt(CAM_LOOK);
   cup = activeCup().userData.st;
 
-  // Удерживаемый предмет
+  // Удерживаемый предмет: кинематическое тело тянется за курсором
   if (held) {
     const p = cursorPoint();
-    if (p) {
-      held.userData.target.set(clamp(p.x, -6.4, 6.4), 1.35, clamp(p.z, -1.4, 3.6));
-      if (held === spoonObj) {
-        const c = stirCup && Math.hypot(spoonObj.position.x - stirCup.position.x, spoonObj.position.z - stirCup.position.z) < 1.1 ? stirCup : nearestCup(spoonObj, .9);
-        if (c) {
-          if (c !== stirCup) { stirCup = c; stirLast = null; stirAcc = c.userData.st.stirs * Math.PI * 2; }
-          const sc = c.position.clone(); sc.y += .9; sc.project(camera);
-          const sx = (sc.x + 1) / 2 * innerWidth, sy = (1 - sc.y) / 2 * innerHeight;
-          const a = Math.atan2(py - sy, px - sx);
-          const st = c.userData.st;
-          if (stirLast !== null) {
-            let d = a - stirLast; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
-            stirAcc += Math.abs(d);
-            const before = Math.floor(st.stirs);
-            if (st.coffee + st.water + st.milk > 5) st.stirs = stirAcc / (Math.PI * 2);
-            if (Math.floor(st.stirs) > before) sClink();
-          }
-          stirLast = a; lastCup = c;
-          held.userData.target.set(c.position.x + Math.cos(a) * .2, c.position.y + .55, c.position.z + Math.sin(a) * .2);
-          spoonObj.rotation.set(-1.1, -a + Math.PI / 2, 0);
-        } else { stirCup = null; stirLast = null; spoonObj.rotation.set(0, .5, 0); }
-      }
+    const u = held.userData;
+    if (p) u.target.set(clamp(p.x, -6.4, 6.4), u.liftY || 1.35, clamp(p.z, -1.4, 3.6));
+    if (!u.cleared) {
+      if (held.position.y > (u.liftY || 1.35) - .2) u.cleared = true;
+      else u.target.set(u.startXZ.x, u.liftY, u.startXZ.y);
     }
-    const before = held.position.clone();
-    held.position.lerp(held.userData.target, 1 - Math.exp(-dt * 18));
-    const vel = held.position.clone().sub(before).divideScalar(Math.max(dt, .001));
-    if (held !== spoonObj) {
-      held.rotation.x = THREE.MathUtils.lerp(held.rotation.x, clamp(vel.z * .03, -.35, .35), .2);
-      const tilt = THREE.MathUtils.degToRad(held.userData.tilt || 0);
-      held.rotation.z = THREE.MathUtils.lerp(held.rotation.z, tilt - clamp(vel.x * .03, -.35, .35), .25);
+    let euler = null;
+    if (held === spoonObj) {
+      const c = stirCup && Math.hypot(u.target.x - stirCup.position.x, u.target.z - stirCup.position.z) < 1.6 ? stirCup : nearestCup({ position: u.target }, 1.2);
+      if (c) {
+        if (c !== stirCup) { stirCup = c; stirLast = null; stirAcc = c.userData.st.stirs * Math.PI * 2; }
+        const sc = c.position.clone(); sc.y += .9; sc.project(camera);
+        const sx = (sc.x + 1) / 2 * innerWidth, sy = (1 - sc.y) / 2 * innerHeight;
+        const a = Math.atan2(py - sy, px - sx);
+        const st = c.userData.st;
+        if (stirLast !== null) {
+          let d = a - stirLast; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+          stirAcc += Math.abs(d);
+          const before = Math.floor(st.stirs);
+          if (st.coffee + st.water + st.milk > 5) st.stirs = stirAcc / (Math.PI * 2);
+          if (Math.floor(st.stirs) > before) sClink();
+        }
+        stirLast = a; lastCup = c; u.stirA = -a;
+        u.body.collisionResponse = false;
+        u.target.set(c.position.x + Math.cos(a) * .1, c.position.y + .22, c.position.z + Math.sin(a) * .1);
+        euler = new THREE.Euler(-Math.PI / 2 + .15, -a, 0, "YXZ");
+      } else { stirCup = null; stirLast = null; u.body.collisionResponse = true; }
     }
+    if (!euler) {
+      const bv = u.body.velocity;
+      euler = new THREE.Euler(clamp(bv.z * .03, -.35, .35), u.yaw || 0, THREE.MathUtils.degToRad(u.tilt || 0) - clamp(bv.x * .03, -.35, .35), "YXZ");
+    }
+    drive(held, u.target, euler, u.inner ? 11 : 16, u.inner ? 16 : 30);
   }
-  // Остальные предметы: прилипшие едут к своему месту, свободные подчиняются физике
-  const bodies = draggables.concat(sugars.filter((c) => c !== held));
-  // Что лежит на предмете или внутри него, переезжает вместе с ним
-  for (const o of bodies) {
+  // Прилипшие к месту предметы и унесённые кружки тоже кинематические
+  for (const o of draggables) {
     const u = o.userData;
-    if (u.mode !== "free" || !u.on || !u.grounded) continue;
-    const c = u.on.userData;
-    if (!u.on.visible || c.mode === "gone") { u.on = null; continue; }
-    o.position.add(u.on.position.clone().sub(c.prev));
+    if (o === held || !o.visible || (u.mode !== "snap" && u.mode !== "carry")) continue;
+    let euler = u.euler;
+    if (o === pfObj && pf.slot === "group") euler = new THREE.Euler(0, -THREE.MathUtils.degToRad(pf.angle), 0, "YXZ");
+    drive(o, u.target, euler, u.mode === "carry" ? 3 : 12);
   }
-  for (const o of bodies) {
-    if (o === held || !o.visible) continue;
-    const u = o.userData;
-    if (u.mode === "snap" || u.mode === "carry") {
-      o.position.lerp(u.target, 1 - Math.exp(-dt * (u.mode === "carry" ? 3 : 14)));
-      o.rotation.x = THREE.MathUtils.lerp(wrapAngle(o.rotation.x), 0, .2);
-      o.rotation.z = THREE.MathUtils.lerp(wrapAngle(o.rotation.z), 0, .2);
-      if (o === spoonObj) o.rotation.y = THREE.MathUtils.lerp(o.rotation.y, .5, .2);
-    } else if (u.mode === "free") {
-      // Несколько подшагов, чтобы быстрые предметы не пролетали сквозь стенки
-      const n = Math.ceil(dt / .016);
-      for (let i = 0; i < n && u.mode === "free"; i++) stepPhysics(o, dt / n);
-      if (u.kind === "sugar" && u.mode === "free") {
-        if (u.on && u.on.userData.kind === "cup") sugarInto(u.on, o);
-        else if (u.rest > 8) removeSugar(o);
-      }
-    }
-  }
-  // Столкновения предметов друг с другом
-  const solids = draggables.filter((o) => o.visible && o !== held && (o.userData.mode === "free" || o.userData.mode === "snap"));
-  for (let i = 0; i < solids.length; i++) {
-    for (let j = i + 1; j < solids.length; j++) {
-      const a = solids[i], b = solids[j], ua = a.userData, ub = b.userData;
-      const aF = ua.mode === "free", bF = ub.mode === "free";
-      if (!aF && !bF) continue;
-      if (restsOn(a, b) || restsOn(b, a)) continue;
-      if (a.position.y >= b.position.y + (ub.h || .5) - .08 || b.position.y >= a.position.y + (ua.h || .5) - .08) continue;
-      const dx = b.position.x - a.position.x, dz = b.position.z - a.position.z, d = Math.hypot(dx, dz);
-      const min = (ua.r + ub.r) * .85;
-      if (d >= min || d < 1e-4) continue;
-      const nx = dx / d, nz = dz / d, ov = min - d;
-      const ka = aF && bF ? .5 : aF ? 1 : 0, kb = aF && bF ? .5 : bF ? 1 : 0;
-      a.position.x -= nx * ov * ka; a.position.z -= nz * ov * ka;
-      b.position.x += nx * ov * kb; b.position.z += nz * ov * kb;
-      const rv = (ub.vel.x - ua.vel.x) * nx + (ub.vel.z - ua.vel.z) * nz;
-      if (rv < 0) {
-        const imp = -rv * .8;
-        if (aF) { ua.vel.x -= nx * imp * ka * 2; ua.vel.z -= nz * imp * ka * 2; }
-        if (bF) { ub.vel.x += nx * imp * kb * 2; ub.vel.z += nz * imp * kb * 2; }
-        if (imp > 1.5) sKnock(imp * 2);
-      }
-    }
-  }
-  // Холдер в группе: поворот
-  if (pf.slot === "group" && held !== pfObj) pfObj.rotation.y = THREE.MathUtils.lerp(pfObj.rotation.y, -THREE.MathUtils.degToRad(pf.angle), .35);
-  else if (held !== pfObj && pfObj.userData.mode === "snap") pfObj.rotation.y = THREE.MathUtils.lerp(pfObj.rotation.y, 0, .3);
   // Темпер: нажим
   if (pressing) {
     tampPress = Math.min(1.3, tampPress + dt * .55);
     tamperObj.userData.target.y = zTamper.pos.y - clamp(tampPress, 0, 1) * .12;
     meter("Нажим темпера", tampPress, 1.3, .65, .92);
+  }
+  // То, что лежит внутри кружки, питчера или холдера, едет вместе с ними
+  for (const c of draggables) {
+    const uc = c.userData;
+    if (!uc.inner || !c.visible || uc.mode === "free" || uc.mode === "gone") continue;
+    c.updateMatrixWorld();
+    const cv = uc.body.velocity;
+    for (const o of draggables.concat(sugars)) {
+      if (o === c || !o.visible || o.userData.mode !== "free" || !o.userData.body) continue;
+      const l = c.worldToLocal(o.position.clone());
+      if (Math.hypot(l.x, l.z) < uc.inner && l.y > -.05 && l.y < uc.h + .15) {
+        const ob = o.userData.body;
+        ob.velocity.set(THREE.MathUtils.lerp(ob.velocity.x, cv.x, .7), THREE.MathUtils.lerp(ob.velocity.y, cv.y, .7), THREE.MathUtils.lerp(ob.velocity.z, cv.z, .7));
+        ob.angularVelocity.scale(.8, ob.angularVelocity);
+        ob.wakeUp();
+      }
+    }
+  }
+  // Шаг физики и перенос положений на 3D-модели
+  world.step(1 / 60, dt, 6);
+  const live = draggables.concat(sugars);
+  for (const o of live) {
+    const b = o.userData.body;
+    if (!b || !o.visible) continue;
+    o.position.set(b.position.x, b.position.y, b.position.z);
+    o.quaternion.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+    if (o.userData.mode === "free" && b.position.y < -3) lose(o);
+  }
+  // Опрокинутая кружка выливается
+  for (const c of cups) {
+    if (!c.visible) continue;
+    const up = UP.clone().applyQuaternion(c.quaternion), st = c.userData.st, tot = st.coffee + st.water + st.milk;
+    if (up.y < .5 && tot > 0) {
+      const k = Math.max(0, 1 - dt * 3);
+      st.coffee *= k; st.water *= k; st.milk *= k;
+      if (tot > 15) { st.spilled = true; warn("Кружка опрокинулась, всё вылилось!"); }
+      if (Math.random() < .5) puff(c.position.clone().add(new THREE.Vector3(0, .3, 0)), .5);
+    }
+  }
+  // Сахар: в кружке растворяется, на столе через 10 секунд исчезает
+  for (const s of sugars.slice()) {
+    if (s === held || s.userData.mode !== "free") continue;
+    let done = false;
+    for (const c of cups) {
+      if (!c.visible) continue;
+      const up = UP.clone().applyQuaternion(c.quaternion);
+      if (up.y < .7) continue;
+      const l = c.worldToLocal(s.position.clone());
+      if (Math.hypot(l.x, l.z) < .37 && l.y > 0 && l.y < .82) { sugarInto(c, s); done = true; break; }
+    }
+    if (!done && now - s.userData.born > 10000) removeSugar(s);
   }
   for (const [b, z] of btnRest) b.position.z = THREE.MathUtils.lerp(b.position.z, holdAct && b.userData.kind === holdAct ? z + .06 : z, .4);
 
@@ -1388,7 +1415,6 @@ function update(dt, now) {
     }
   }
   hopper.position.x = grinding ? GRIND.x + Math.sin(t * 90) * .015 : GRIND.x;
-  for (const o of draggables) o.userData.prev.copy(o.position);
   if (G.running && !G.serving && order() && (now - order().t0) / 1000 > G.patience) walkOut();
 }
 function loop() {
@@ -1423,20 +1449,24 @@ function start() {
   Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 });
   Object.assign(pit, { milk: 0, temp: 6, slot: "free" });
   tamperOn = false;
-  for (const o of draggables) {
-    if (o.userData.kind === "cup") continue;
-    o.userData.mode = "free"; o.userData.lost = false; o.visible = true; o.position.copy(o.userData.home); o.userData.vel.set(0, 0, 0);
-  }
-  cups.forEach((c, i) => {
-    c.userData.st = freshCupState(); c.userData.mode = "free"; c.userData.lost = false; c.visible = true;
-    c.position.copy(STACK).add(new THREE.Vector3(0, i * NEST, 0)); c.userData.vel.set(0, 0, 0); c.rotation.set(0, 0, 0);
-  });
+  for (const s of sugars.slice()) removeSugar(s);
+  const place = (o, pos) => {
+    const u = o.userData, b = u.body;
+    u.lost = false; o.visible = true;
+    if (!world.bodies.includes(b)) world.addBody(b);
+    b.position.set(pos.x, pos.y, pos.z);
+    b.quaternion.setFromEuler(0, o === spoonObj ? .5 : 0, 0, "YXZ");
+    b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
+    setMode(o, "free");
+  };
+  for (const o of draggables) if (o.userData.kind !== "cup") place(o, o.userData.home);
+  cups.forEach((c, i) => { c.userData.st = freshCupState(); place(c, STACK.clone().add(new THREE.Vector3(0, i * NEST, 0))); });
   lastCup = cups[cups.length - 1];
   newShift();
 }
 $("#startBtn").addEventListener("click", start);
 $("#againBtn").addEventListener("click", start);
-window.__coffee = { renderer, G, pf, pit, cups, sugars, zones, camera, draggables, objs: { pfObj, tamperObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn }, get cup() { return cup; }, get held() { return held; } };
+window.__coffee = { snap, setMode, get stirCup() { return stirCup; }, renderer, G, pf, pit, cups, sugars, zones, camera, draggables, objs: { pfObj, tamperObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn }, get cup() { return cup; }, get held() { return held; } };
 </script>
 </body>
 </html>

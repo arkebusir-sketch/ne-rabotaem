@@ -375,6 +375,191 @@
   }
   #toast.on { transform: translate(-50%, 0); }
 
+  /* ===== Дверь ===== */
+  .door-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: 40px; align-items: start; }
+  .handle-count { font-family: var(--display); font-size: 26px; line-height: 1.2; margin: 0 0 18px; text-shadow: 2px 2px 0 var(--ink); }
+  .door {
+    position: relative; height: 640px; max-width: 580px;
+    background: #9a5530; border: 10px solid var(--ink); border-bottom-width: 0; border-radius: 12px 12px 0 0;
+    box-shadow: 12px 12px 0 var(--wall-d);
+  }
+  .door::before, .door::after {
+    content: ""; position: absolute; left: 30px; right: 30px;
+    border: 6px solid rgba(14, 19, 48, .3); border-radius: 6px; background: rgba(0, 0, 0, .06);
+  }
+  .door::before { top: 70px; height: calc(45% - 70px); }
+  .door::after { top: 52%; bottom: 30px; }
+  .door.rattle { animation: rattle .35s; }
+  @keyframes rattle { 25% { transform: translateX(-4px) rotate(-.4deg); } 50% { transform: translateX(4px) rotate(.3deg); } 75% { transform: translateX(-2px); } }
+  .door-plate {
+    position: absolute; left: 50%; top: 18px; z-index: 1; transform: translateX(-50%);
+    background: var(--chalk); color: var(--ink); border: 3px solid var(--ink); border-radius: 4px;
+    padding: 2px 12px; font-size: 14px; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis;
+  }
+  .notes { position: absolute; inset: 0; z-index: 2; }
+  .note-s {
+    position: absolute; width: 150px; min-height: 104px; padding: 10px 12px 8px;
+    color: var(--ink); font-family: var(--hand); font-size: 16px; line-height: 1.3;
+    box-shadow: 3px 4px 0 rgba(14, 19, 48, .35);
+    transform: rotate(var(--r)); overflow-wrap: anywhere;
+  }
+  .note-s small { display: block; margin-top: 6px; font-family: var(--text); font-size: 12px; font-style: italic; }
+  .note-s .tear {
+    position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--ink); color: var(--chalk); border: 0; font: 700 16px/1 var(--text); cursor: pointer;
+    opacity: 0; transition: opacity .15s;
+  }
+  .note-s:hover .tear, .note-s:focus-within .tear { opacity: 1; }
+  @media (hover: none) { .note-s .tear { opacity: .85; } }
+  .note-s.new { animation: stick .45s cubic-bezier(.2, .9, .3, 1.3); }
+  @keyframes stick { from { transform: rotate(var(--r)) translateY(-40px) scale(1.5); opacity: 0; } }
+  .note-s.off { animation: off .6s cubic-bezier(.5, 0, .9, .5) forwards; pointer-events: none; }
+  @keyframes off { 30% { transform: rotate(calc(var(--r) + 12deg)) translateY(-6px); } to { transform: rotate(calc(var(--r) + 50deg)) translateY(700px); opacity: 0; } }
+  .c0 { background: #fff59a; } .c1 { background: #ffc2d6; } .c2 { background: #b9f0c9; } .c3 { background: #bfe3ff; } .c4 { background: #ffd8a8; }
+  .handle {
+    position: absolute; right: 22px; top: 50%; z-index: 3; width: 96px; height: 24px; padding: 0; cursor: pointer;
+    background: var(--sign); border: 4px solid var(--ink); border-radius: 12px;
+    transform-origin: 14px 50%; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1);
+    box-shadow: 3px 3px 0 rgba(14, 19, 48, .45);
+  }
+  .handle::before { content: ""; position: absolute; left: 2px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--ink); }
+  .handle.pull { transform: rotate(32deg); }
+  .bell {
+    position: relative; display: grid; place-items: center; width: 116px; height: 116px; border-radius: 50%; cursor: pointer;
+    background: var(--chalk); color: var(--ink); border: 6px solid var(--ink); box-shadow: 0 8px 0 var(--ink);
+    font-family: var(--display); font-size: 20px; letter-spacing: .03em;
+    transition: transform .06s, box-shadow .06s;
+  }
+  .bell span { position: relative; z-index: 1; margin-top: 64px; }
+  .bell::after { content: ""; position: absolute; left: 50%; top: 22px; width: 44px; height: 44px; margin-left: -22px; border-radius: 50%; background: var(--stamp); border: 4px solid var(--ink); }
+  .bell:active { transform: translateY(6px); box-shadow: 0 2px 0 var(--ink); }
+  .bell.ring { animation: ring .5s; }
+  @keyframes ring { 20% { transform: rotate(-9deg); } 40% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(3deg); } }
+  .bubble {
+    position: relative; margin: 26px 0 32px; padding: 12px 16px; min-height: 3.4em;
+    background: var(--chalk); color: var(--ink); border: 4px solid var(--ink); border-radius: 16px;
+    font-family: var(--hand); font-size: 20px; line-height: 1.35;
+  }
+  .bubble::before { content: ""; position: absolute; left: 44px; top: -24px; border: 9px solid transparent; border-bottom: 14px solid var(--ink); }
+  .bubble.pop { animation: pop .3s ease-out; }
+  .note-form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+  .note-form h3 { font-size: 26px; }
+  .note-form textarea, .note-form input, .pw-box input, .badge input {
+    font: inherit; font-size: 18px; padding: 8px 12px;
+    background: #fff; color: var(--ink); border: 4px solid var(--ink); border-radius: 10px;
+  }
+  .note-form textarea { min-height: 74px; resize: vertical; }
+  .note-form .btn { align-self: flex-start; }
+  .note-msg { margin: 0; font-size: 15px; font-style: italic; }
+
+  /* Конструктор отмазок */
+  .excuse { margin-top: 64px; max-width: 900px; padding: 22px 24px; }
+  .excuse h3 { font-size: 34px; }
+  .excuse > p { margin: 4px 0 0; }
+  .reels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+  .reel {
+    display: flex; align-items: center; min-height: 5.6em; padding: 8px 12px;
+    background: #fff; border: 4px solid var(--ink); border-radius: 10px; font-size: 18px; line-height: 1.3;
+  }
+  .reel.spin { filter: blur(1.2px); background: #fff8d6; }
+  .excuse-out { font-size: 22px; font-style: italic; margin: 0 0 16px; min-height: 2.6em; }
+  .excuse .actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* Комната отдыха: бейдж, рейтинг, игра */
+  .badge { display: inline-flex; flex-direction: column; gap: 4px; margin: -8px 0 32px; font-size: 16px; }
+  .badge input { width: min(320px, 80vw); background: var(--chalk); }
+  .badge small { font-style: italic; }
+  .board { text-align: left; margin-top: 32px; padding: 16px 20px 12px; }
+  .board h3 { font-size: 28px; }
+  .board > p { margin: 2px 0 6px; font-size: 15px; }
+  .board ol { margin: 0; padding: 0 0 0 1.6em; }
+  .board li { padding: 6px 0; border-top: 2px dashed var(--ink); }
+  .board li b { font-family: var(--display); font-weight: 400; font-size: 20px; }
+  .board li.me { background: #fff3b0; }
+  .board li.empty { list-style: none; margin-left: -1.6em; font-style: italic; }
+  .game { margin-top: 56px; }
+  .game-help { margin: -4px 0 14px; max-width: 60ch; }
+  #task { display: block; width: 100%; max-width: 900px; height: auto; aspect-ratio: 16 / 9; background: var(--ink); border: 6px solid var(--chalk); border-radius: 12px; touch-action: none; }
+  .game-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 16px; }
+  .game-bar p { margin: 0; font-style: italic; }
+
+  /* Штат: доска почёта, голоса, пароль */
+  .honor { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-bottom: 4px solid var(--ink); background: #fff3b0; }
+  .honor p { margin: 0; }
+  .honor b { display: block; font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.1; }
+  .medal {
+    flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%;
+    background: var(--sign); color: var(--stamp); border: 5px solid var(--ink); font-size: 34px; line-height: 1;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .honor.pop .medal { animation: medal .6s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes medal { from { transform: scale(.3) rotate(-90deg); } }
+  .vote[aria-pressed="true"] { background: var(--sign); }
+  .acts .btn { margin: 0 8px 0 0; }
+  .acts .btn:last-child { margin-right: 0; }
+  .pw-box { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px; border-top: 4px solid var(--ink); background: #ffe1dc; }
+  .pw-box p { flex: 1 1 100%; margin: 0; }
+  .pw-box input { flex: 1 1 200px; }
+  .pw-box .pw-msg { font-weight: 700; min-height: 1.4em; }
+  .panic { margin-left: auto; }
+
+  /* ===== Excel ===== */
+  #excel { position: fixed; inset: 0; z-index: 400; display: flex; flex-direction: column; background: #fff; color: #222; font: 13px/1.35 Calibri, "Segoe UI", Arial, sans-serif; }
+  .xl-top { background: #217346; color: #fff; padding: 7px 14px; }
+  .xl-tabs { display: flex; gap: 20px; padding: 6px 14px 0; background: #f3f3f3; overflow: hidden; white-space: nowrap; }
+  .xl-tabs span { padding-bottom: 5px; }
+  .xl-tabs .on { border-bottom: 3px solid #217346; color: #217346; }
+  .xl-ribbon { display: flex; gap: 10px; height: 70px; padding: 10px 14px; background: #fafafa; border-block: 1px solid #d4d4d4; overflow: hidden; }
+  .xl-ribbon i { flex: none; width: 52px; border: 1px solid #e1e1e1; border-radius: 3px; background: linear-gradient(#fff, #eee); }
+  .xl-ribbon i.w { width: 140px; }
+  .xl-fx { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 1px solid #d4d4d4; }
+  .xl-fx .ref { width: 72px; border: 1px solid #c8c8c8; padding: 1px 6px; }
+  .xl-fx .fx { font-style: italic; color: #777; }
+  .xl-fx .f { flex: 1; border: 1px solid #c8c8c8; padding: 1px 6px; }
+  .xl-grid { flex: 1; overflow: auto; }
+  table.xl { border-collapse: collapse; }
+  .xl th, .xl td { border: 1px solid #e1e1e1; padding: 1px 8px; height: 21px; white-space: nowrap; min-width: 96px; }
+  .xl th { background: #f3f3f3; color: #555; font-weight: 400; text-align: center; position: sticky; top: 0; }
+  .xl th.rn, .xl td.rn { min-width: 36px; background: #f3f3f3; color: #555; text-align: center; position: sticky; left: 0; }
+  .xl td.num { text-align: right; }
+  .xl tr.head td { font-weight: 700; background: #e2efda; }
+  .xl tr.sum td { font-weight: 700; border-top: 2px solid #217346; }
+  .xl td.sel { outline: 2px solid #217346; outline-offset: -2px; }
+  .xl-sheets { display: flex; gap: 2px; padding: 0 10px; background: #f3f3f3; border-top: 1px solid #d4d4d4; }
+  .xl-sheets span { padding: 3px 14px; }
+  .xl-sheets .on { background: #fff; color: #217346; font-weight: 700; border-bottom: 2px solid #217346; }
+  .xl-status { display: flex; justify-content: space-between; gap: 20px; padding: 3px 14px; background: #217346; color: #fff; font-size: 12px; white-space: nowrap; overflow: hidden; }
+
+  /* ===== Ночная смена ===== */
+  body.night { --wall: #182064; --wall-d: #0b1140; }
+  body.night::before { opacity: .5; }
+  body.night .face.front { box-shadow: 0 0 26px 6px rgba(255, 210, 31, .7), 9px 9px 0 var(--wall-d); }
+  body.night .face.front .big { text-shadow: 0 0 12px rgba(255, 210, 31, .95); }
+  body.night .ticker { box-shadow: 0 0 30px rgba(255, 210, 31, .55); }
+  #guard {
+    position: fixed; inset: 0; z-index: 105; pointer-events: none;
+    background: radial-gradient(circle 210px at var(--gx, 50%) var(--gy, 50%), rgba(255, 240, 180, .14) 0, rgba(255, 240, 180, .06) 55%, rgba(4, 6, 26, .58) 100%);
+  }
+  #guardIcon { position: absolute; left: 0; top: 0; font-size: 30px; transform: translate(var(--gx, 50vw), var(--gy, 50vh)) translate(-50%, -50%); }
+
+  /* ===== Кот ===== */
+  #cat { position: fixed; left: 0; bottom: 0; z-index: 115; width: 104px; height: 70px; cursor: pointer; display: none; }
+  #cat.on { display: block; }
+  #cat svg { display: block; width: 100%; height: 100%; }
+  #cat.left svg { transform: scaleX(-1); }
+  #cat .leg { transform-box: fill-box; transform-origin: 50% 0; animation: legs .34s steps(2) infinite; }
+  #cat .leg.l2 { animation-delay: -.17s; }
+  #cat.sit .leg { animation: none; }
+  #cat .tail { transform-box: fill-box; transform-origin: 100% 100%; animation: tail 1.2s ease-in-out infinite alternate; }
+  @keyframes legs { 50% { transform: rotate(16deg); } }
+  @keyframes tail { to { transform: rotate(-14deg); } }
+  #cat .say {
+    position: absolute; bottom: 74px; left: 50%; transform: translateX(-50%); display: none;
+    background: var(--chalk); color: var(--ink); border: 3px solid var(--ink); border-radius: 10px;
+    padding: 2px 10px; font-family: var(--hand); font-size: 16px; white-space: nowrap;
+  }
+  #cat.sit .say { display: block; }
+
   /* ===== Корпоратив ===== */
   body.party { animation: wall 2.4s steps(1) infinite; }
   @keyframes wall {
@@ -394,6 +579,13 @@
     .acts .btn + .btn { margin: 8px 0 0; }
     .complaints li { padding-right: 0; }
     .complaints .stamp { position: relative; right: auto; top: auto; margin: 8px 0 0; display: inline-block; }
+    .door-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .door { height: 540px; }
+    .note-s { width: 124px; min-height: 90px; font-size: 14px; padding: 8px 9px 6px; }
+    .reels { grid-template-columns: minmax(0, 1fr); }
+    .reel { min-height: 3.4em; }
+    .acts .btn { margin: 0 0 8px; }
+    .panic { margin-left: 0; }
   }
   @media (max-width: 520px) {
     .day { min-height: 46px; padding: 3px 4px; border-left-width: 5px; }
@@ -421,6 +613,7 @@
   <button class="brand" id="brand" type="button">Не работаем</button>
   <nav aria-label="Разделы">
     <a href="#home" data-page="home">Главная</a>
+    <a href="#door" data-page="door">Дверь</a>
     <a href="#reasons" data-page="reasons">Причины</a>
     <a href="#play" data-page="play">Развлечения</a>
     <a href="#staff" data-page="staff">Штат</a>
@@ -468,6 +661,31 @@
     </div>
   </section>
 
+  <section class="page" id="door" aria-labelledby="h-door">
+    <h2 class="title" id="h-door">Дверь</h2>
+    <div class="door-grid">
+      <div class="door-wrap">
+        <p class="handle-count" id="handleCount" aria-live="polite">Считаем, сколько раз дёрнули ручку…</p>
+        <div class="door" id="doorEl">
+          <span class="door-plate">Служебный вход. Не входить. Не выходить.</span>
+          <div class="notes" id="notes"></div>
+          <button class="handle" id="handle" type="button" aria-label="Дёрнуть ручку"></button>
+        </div>
+      </div>
+      <div class="door-side">
+        <button class="bell" id="bell" type="button"><span>Звонок</span></button>
+        <p class="bubble" id="bubble" aria-live="polite">Позвоните. Вдруг кто-то есть.</p>
+        <form class="note-form paper" id="noteForm">
+          <h3>Оставить записку</h3>
+          <textarea id="noteText" maxlength="80" placeholder="Был тут, вас не было" aria-label="Текст записки"></textarea>
+          <input id="noteBy" type="text" maxlength="24" placeholder="Подпись" aria-label="Подпись" autocomplete="nickname">
+          <button class="btn" type="submit">Приклеить записку</button>
+          <p class="note-msg" id="noteMsg" aria-live="polite">Записки видят все. Любую можно оторвать.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
   <section class="page" id="reasons" aria-labelledby="h-reasons">
     <h2 class="title" id="h-reasons">Почему закрыто</h2>
     <div class="stage">
@@ -485,6 +703,20 @@
         <p class="sign-off">Администрация</p>
       </div>
     </div>
+    <div class="excuse paper">
+      <h3>Конструктор отмазок</h3>
+      <p>Для преподавателя, начальника и мамы. Каждая собирается из трёх частей.</p>
+      <div class="reels">
+        <div class="reel" aria-hidden="true"></div>
+        <div class="reel" aria-hidden="true"></div>
+        <div class="reel" aria-hidden="true"></div>
+      </div>
+      <p class="excuse-out" id="exOut" aria-live="polite"></p>
+      <div class="actions">
+        <button class="btn" id="exSpin" type="button">Крутить</button>
+        <button class="btn alt" id="exCopy" type="button">Скопировать отмазку</button>
+      </div>
+    </div>
     <div class="book paper">
       <h3>Жалобная книга</h3>
       <p>Каждая жалоба рассматривается немедленно и уходит лично директору.</p>
@@ -498,6 +730,10 @@
 
   <section class="page" id="play" aria-labelledby="h-play">
     <h2 class="title" id="h-play">Комната отдыха</h2>
+    <label class="badge">Имя на бейдже
+      <input id="nick" type="text" maxlength="24" placeholder="Аноним" autocomplete="nickname">
+      <small>Нужно для рекорда дня и рейтинга лентяев.</small>
+    </label>
     <div class="rest">
       <div class="lazy-wrap">
         <button class="lazy" id="lazy" type="button">Лениться</button>
@@ -507,6 +743,11 @@
           <h3>Чек на удобства</h3>
           <ul id="shop"></ul>
         </div>
+        <div class="board paper">
+          <h3>Рейтинг лентяев</h3>
+          <p>Минуты отдыха за всё время. Чтобы попасть сюда, впишите имя на бейдже.</p>
+          <ol id="lazyBoard"><li class="empty">Загружаем…</li></ol>
+        </div>
       </div>
       <div class="side">
         <div>
@@ -514,12 +755,7 @@
           <button class="react" id="react" type="button">
             Нажмите, чтобы начать<small>Когда экран станет зелёным, жмите как можно быстрее.</small>
           </button>
-          <div class="daybest">
-            <p class="daybest-line" id="dayBest" aria-live="polite">Рекорд дня: загружаем…</p>
-            <label class="nick">Ваше имя для рекорда
-              <input id="nick" type="text" maxlength="24" placeholder="Аноним" autocomplete="nickname">
-            </label>
-          </div>
+          <p class="daybest-line" id="dayBest" aria-live="polite">Рекорд дня: загружаем…</p>
         </div>
         <div>
           <h3 class="play-h">Кнопка «Работать»</h3>
@@ -530,11 +766,24 @@
         </div>
       </div>
     </div>
+    <div class="game">
+      <h3 class="play-h">Уклонись от задачи</h3>
+      <p class="game-help">Задачи падают сверху. Двигайте диван мышью, пальцем или стрелками и не дайте себя загрузить.</p>
+      <canvas id="task" width="800" height="450" aria-label="Игра «Уклонись от задачи»"></canvas>
+      <div class="game-bar">
+        <button class="btn" id="taskStart" type="button">Начать уклоняться</button>
+        <p id="taskInfo" aria-live="polite">Ваш рекорд: 0 с.</p>
+      </div>
+    </div>
   </section>
 
   <section class="page" id="staff" aria-labelledby="h-staff">
     <h2 class="title" id="h-staff">Штатное расписание</h2>
     <div class="paper">
+      <div class="honor" id="honor">
+        <span class="medal" aria-hidden="true">★</span>
+        <p><b id="honorName">Сотрудник месяца пока не выбран</b><span id="honorNote">Голосуйте звёздочкой у любого сотрудника.</span></p>
+      </div>
       <table class="roster">
         <thead><tr><th scope="col">Сотрудник</th><th scope="col">Должность</th><th scope="col">Кадровые решения</th></tr></thead>
         <tbody id="rosterBody"></tbody>
@@ -544,6 +793,20 @@
         <button class="btn" id="hireBtn" type="submit">Принять на работу</button>
       </form>
       <p class="hire-msg" id="hireMsg" aria-live="polite"></p>
+      <form class="pw-box" id="fireBox" hidden>
+        <p id="fireWho">Нужен пароль директора.</p>
+        <input id="firePw" type="password" maxlength="40" placeholder="Пароль директора" aria-label="Пароль директора" autocomplete="current-password">
+        <button class="btn danger" type="submit">Уволить</button>
+        <button class="btn alt" id="fireCancel" type="button">Передумал</button>
+        <p class="pw-msg" id="fireMsg" aria-live="polite"></p>
+      </form>
+      <form class="pw-box" id="bossBox" hidden>
+        <p>Никитка, задайте пароль директора. Без него никто не сможет увольнять сотрудников. 4–40 символов: латинские буквы, цифры, «_» или «-».</p>
+        <input id="bossPw1" type="password" maxlength="40" placeholder="Новый пароль" aria-label="Новый пароль директора" autocomplete="new-password">
+        <input id="bossPw2" type="password" maxlength="40" placeholder="Ещё раз" aria-label="Повторите пароль" autocomplete="new-password">
+        <button class="btn" type="submit">Сохранить пароль</button>
+        <p class="pw-msg" id="bossMsg" aria-live="polite"></p>
+      </form>
       <p class="roster-note" id="staffNote"></p>
     </div>
   </section>
@@ -559,7 +822,37 @@
 <footer>
   <span>Вы зашли сюда <b id="visits">1</b>-й раз. Для закрытого магазина это много.</span>
   <span>До открытия: <b id="cd">00:00:00</b></span>
+  <span>Сейчас не работают вместе с вами: <b id="online">1</b></span>
+  <button class="btn small alt panic" id="panic" type="button" title="Мгновенно спрятать сайт. Вернуться: Esc">Шеф идёт!</button>
 </footer>
+
+<div id="guard" aria-hidden="true" hidden><span id="guardIcon">🔦</span></div>
+
+<div id="cat" aria-label="Кот" role="button" tabindex="-1">
+  <span class="say" id="catSay">Мяу</span>
+  <svg viewBox="0 0 120 80" aria-hidden="true">
+    <path class="tail" d="M18 46 C4 40 2 22 12 14" fill="none" stroke="#0e1330" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="50" cy="50" rx="34" ry="17" fill="#0e1330"/>
+    <rect class="leg l1" x="26" y="58" width="8" height="18" rx="3" fill="#0e1330"/>
+    <rect class="leg l2" x="38" y="58" width="8" height="18" rx="3" fill="#0e1330"/>
+    <rect class="leg l1" x="62" y="58" width="8" height="18" rx="3" fill="#0e1330"/>
+    <rect class="leg l2" x="72" y="58" width="8" height="18" rx="3" fill="#0e1330"/>
+    <circle cx="90" cy="36" r="17" fill="#0e1330"/>
+    <path d="M78 26 L80 8 L92 22 Z M94 22 L104 8 L104 28 Z" fill="#0e1330"/>
+    <circle cx="96" cy="34" r="3.2" fill="#ffd21f"/>
+    <circle cx="86" cy="34" r="3.2" fill="#ffd21f"/>
+  </svg>
+</div>
+
+<div id="excel" hidden>
+  <div class="xl-top">Квартальный_отчёт_Q4_финал_v7.xlsx — Excel</div>
+  <div class="xl-tabs"><span>Файл</span><span class="on">Главная</span><span>Вставка</span><span>Разметка страницы</span><span>Формулы</span><span>Данные</span><span>Рецензирование</span><span>Вид</span></div>
+  <div class="xl-ribbon"><i></i><i></i><i></i><i class="w"></i><i></i><i class="w"></i><i></i><i></i></div>
+  <div class="xl-fx"><span class="ref">H41</span><span class="fx">fx</span><span class="f">=СУММ(H3:H40)</span></div>
+  <div class="xl-grid"><table class="xl" id="xlTable"></table></div>
+  <div class="xl-sheets"><span class="on">Отчёт</span><span>Свод</span><span>Лист3</span><span>Не открывать</span></div>
+  <div class="xl-status"><span>Готово</span><span>Среднее: 412 837,50   Количество: 288   Сумма: 118 897 200,00   100%</span></div>
+</div>
 
 <canvas id="fx" aria-hidden="true"></canvas>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -615,7 +908,7 @@
   ];
   /* ====================================== */
 
-  var PAGES = { home: "Главная", reasons: "Причины", play: "Развлечения", staff: "Штат" };
+  var PAGES = { home: "Главная", door: "Дверь", reasons: "Причины", play: "Развлечения", staff: "Штат" };
   var SUBS = ["Секунду, поднимаем рольставню", "Ключи у Людмилы, а Людмила на обеде", "Сейчас откроем, нет, показалось", "Не отходите, мы быстро (нет)", "Рольставню заело, пинаем"];
   var OPENING = ["Открываем, не толкайтесь", "Поднимаем, держитесь", "Тянем вдвоём", "Скрипит, но едет"];
 
@@ -631,14 +924,27 @@
   /* ===== База ===== */
   DB_URL = String(DB_URL || "").replace(/\/+$/, "");
   var shared = /^https:\/\//.test(DB_URL);
-  function req(method, path, body) {
+  function req(method, path, body, qs) {
     var opt = { method: method };
     if (body !== undefined) { opt.headers = { "Content-Type": "application/json" }; opt.body = JSON.stringify(body); }
-    return fetch(DB_URL + path + ".json", opt).then(function (r) {
+    return fetch(DB_URL + path + ".json" + (qs ? "?" + qs : ""), opt).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     });
   }
+  function rid() {
+    var s = "", a = "abcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i = 0; i < 12; i++) s += a[Math.floor(Math.random() * a.length)];
+    return s;
+  }
+  var uid = store.get("uid", "");
+  if (!/^[a-z0-9]{8,20}$/.test(uid)) { uid = rid(); store.set("uid", uid); }
+  var sid = rid();
+  function getNick() { return String(store.get("nick", "") || "").replace(/\s+/g, " ").trim().slice(0, 24); }
+  function plural(n, a, b, c) { var m = Math.abs(n) % 100, k = m % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; }
+  function monthKey() { return todayKey().slice(0, 7); }
+  var qsp = new URLSearchParams(location.search);
+  var wantBoss = qsp.has("boss");
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -719,7 +1025,8 @@
     home: function () { if (!fallen) replay($("#swing"), "enter", ["kick"]); },
     reasons: function () { replay($("#sheet"), "pin", ["tear"]); },
     staff: function () { refreshStaff(); },
-    play: function () { loadDayRec(); }
+    play: function () { loadDayRec(); loadBoard(); },
+    door: function () { loadNotes(); loadHandle(); }
   };
   function show(page, skipEnter) {
     $$(".page").forEach(function (p) { p.classList.toggle("on", p.id === page); });
@@ -1074,7 +1381,7 @@
   }
   renderLazy();
   $("#lazy").addEventListener("click", function () {
-    var inc = perClick(); S.n += inc; renderLazy();
+    var inc = perClick(); S.n += inc; S.total = (S.total || 0) + inc; renderLazy();
     var r = this.getBoundingClientRect();
     var f = el("span", "float", "+" + inc);
     f.style.left = (r.left + r.width / 2 + (Math.random() - .5) * 120) + "px";
@@ -1082,7 +1389,8 @@
     f.addEventListener("animationend", function () { f.remove(); });
     document.body.appendChild(f);
   });
-  setInterval(function () { var s = perSec(); if (s) S.n += s; renderLazy(); store.set("lazy", S); }, 1000);
+  if (typeof S.total !== "number") S.total = S.n;
+  setInterval(function () { var s = perSec(); if (s) { S.n += s; S.total += s; } renderLazy(); store.set("lazy", S); }, 1000);
 
   /* ===== Проверка бодрости ===== */
   var react = $("#react"), rState = "idle", rT0 = 0, rTimer = 0, best = store.get("best", 0);
@@ -1114,7 +1422,11 @@
   /* ===== Рекорд дня (общий) ===== */
   var dayBestEl = $("#dayBest"), nickEl = $("#nick"), dayRec = null;
   nickEl.value = store.get("nick", "");
-  nickEl.addEventListener("change", function () { store.set("nick", nickEl.value.replace(/\s+/g, " ").trim().slice(0, 24)); });
+  nickEl.addEventListener("change", function () {
+    store.set("nick", nickEl.value.replace(/\s+/g, " ").trim().slice(0, 24));
+    if ($("#noteBy") && !$("#noteBy").value) $("#noteBy").value = getNick();
+    syncLazy().then(loadBoard);
+  });
   function todayKey() {
     try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Novosibirsk", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
     catch (e) { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
@@ -1246,7 +1558,95 @@
       var tr = el("tr", "empty"), td = el("td", null, "Больше в штате никого. Наймите кого-нибудь, директору скучно.");
       td.colSpan = 3; tr.appendChild(td); rosterBody.appendChild(tr);
     }
+    paintVotes(false);
   }
+
+  /* Голосование: сотрудник месяца */
+  var votes = {}, voteBtns = [], lastLeader = null;
+  function candName(cid) { return cid === "boss" ? DIRECTOR.name : staff[cid] && validEntry(staff[cid]) ? staff[cid].name : null; }
+  function tally() {
+    var t = {};
+    Object.keys(votes).forEach(function (k) { var c = votes[k]; if (typeof c === "string" && candName(c)) t[c] = (t[c] || 0) + 1; });
+    return t;
+  }
+  function paintVotes(animate) {
+    var t = tally();
+    voteBtns = voteBtns.filter(function (v) { return v.btn.isConnected; });
+    voteBtns.forEach(function (v) {
+      v.btn.textContent = "★ " + (t[v.cid] || 0);
+      v.btn.setAttribute("aria-pressed", votes[uid] === v.cid ? "true" : "false");
+      v.btn.setAttribute("aria-label", "Голосовать за сотрудника месяца, сейчас голосов: " + (t[v.cid] || 0));
+    });
+    var leader = null, max = 0;
+    Object.keys(t).forEach(function (c) { if (t[c] > max) { max = t[c]; leader = c; } });
+    var month = MONTHS[+monthKey().slice(5) - 1].toLowerCase();
+    if (!leader) {
+      $("#honorName").textContent = "Сотрудник месяца пока не выбран";
+      $("#honorNote").textContent = "Голосуйте звёздочкой у любого сотрудника. Один голос в месяц, передумать можно.";
+    } else {
+      $("#honorName").textContent = "Сотрудник месяца: " + candName(leader);
+      $("#honorNote").textContent = "За " + month + " у него " + max + " " + plural(max, "голос", "голоса", "голосов") + ". Премия: 0 ₽ и уважение.";
+      if (animate || (lastLeader && lastLeader !== leader)) replay($("#honor"), "pop");
+    }
+    lastLeader = leader;
+  }
+  function voteFor(cid) {
+    if (!shared) { toast("Голосование работает только с общей базой."); return; }
+    var mine = votes[uid] === cid, prev = votes[uid];
+    if (mine) delete votes[uid]; else votes[uid] = cid;
+    paintVotes(!mine);
+    var path = "/votes/" + monthKey() + "/" + uid;
+    (mine ? req("DELETE", path) : req("PUT", path, cid)).then(function () {
+      toast(mine ? "Голос отозван." : "Голос за " + candName(cid) + " учтён.");
+    }, function () {
+      if (prev) votes[uid] = prev; else delete votes[uid];
+      paintVotes(false);
+      toast("Голос не сохранился: нет связи.");
+    });
+  }
+
+  /* Пароль директора для увольнений */
+  var pwSet = false, fireTarget = null;
+  var fireBox = $("#fireBox"), firePw = $("#firePw"), fireMsg = $("#fireMsg");
+  var PW_RE = /^[A-Za-z0-9_-]{4,40}$/;
+  function askFire(name, go, wrong) {
+    fireTarget = go;
+    $("#fireWho").textContent = "Увольнение сотрудника " + name + ". Подтвердите паролем директора.";
+    fireMsg.textContent = wrong ? "Неверный пароль. Увольнять может только директор." : "";
+    $("#bossBox").hidden = true;
+    fireBox.hidden = false;
+    firePw.value = "";
+    firePw.focus();
+  }
+  fireBox.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var pw = firePw.value.trim();
+    if (!PW_RE.test(pw)) { fireMsg.textContent = "Пароль: 4–40 латинских букв, цифр, «_» или «-»."; return; }
+    fireBox.hidden = true;
+    if (fireTarget) fireTarget(pw);
+  });
+  $("#fireCancel").addEventListener("click", function () { fireBox.hidden = true; fireTarget = null; });
+  function doFire(id, pw) {
+    if (!shared) return api.remove(id);
+    var body = {};
+    body["staff/" + id] = null;
+    body["fire/" + id] = pw;
+    return req("PATCH", "", body);
+  }
+  var bossBox = $("#bossBox"), bossMsg = $("#bossMsg");
+  bossBox.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var a = $("#bossPw1").value.trim(), b = $("#bossPw2").value.trim();
+    if (!PW_RE.test(a)) { bossMsg.textContent = "Пароль: 4–40 латинских букв, цифр, «_» или «-»."; return; }
+    if (a !== b) { bossMsg.textContent = "Пароли не совпадают."; return; }
+    var body = { pwSet: true };
+    body["pw/" + a] = true;
+    req("PATCH", "", body).then(function () {
+      pwSet = true; store.set("bosspw", a);
+      bossBox.hidden = true;
+      toast("Пароль директора сохранён. Теперь увольнять можете только вы.");
+    }, function () { bossMsg.textContent = "Не получилось: пароль, похоже, уже задан. Сменить его можно в консоли Firebase."; });
+  });
   function row(id, p, boss) {
     var tr = el("tr", boss ? "boss" : null);
     var who = el("td", "who"), st = el("span", "stamp");
@@ -1255,10 +1655,14 @@
     who.appendChild(st);
     var role = el("td", null, p.role);
     var acts = el("td", "acts");
+    var vote = el("button", "btn small alt vote", "★ 0");
     var up = el("button", "btn small alt", "Повысить"), out = el("button", "btn small danger", "Уволить");
-    up.type = out.type = "button";
-    acts.appendChild(up); acts.appendChild(out);
+    vote.type = up.type = out.type = "button";
+    acts.appendChild(vote); acts.appendChild(up); acts.appendChild(out);
     tr.appendChild(who); tr.appendChild(role); tr.appendChild(acts);
+    var cid = boss ? "boss" : id;
+    voteBtns.push({ btn: vote, cid: cid });
+    vote.addEventListener("click", function () { voteFor(cid); });
 
     up.addEventListener("click", function () {
       if (boss) { toast(pick(["Выше уже некуда.", "Директора повышают только до директора.", "Повышение отклонено: и так начальник."])); return; }
@@ -1278,29 +1682,45 @@
           "Директор неприкосновенен. Вы, кстати, уволены. Шутка."]));
         return;
       }
-      up.disabled = out.disabled = true;
-      stampIt(st, "Уволен");
-      tr.classList.add("leaving");
-      pending++;
-      wait(1250, function () {
-        api.remove(id).then(function () {
-          delete staff[id];
-          renderStaff();
+      if (shared && !pwSet) { toast("Директор ещё не задал пароль, поэтому увольнения заморожены."); return; }
+      function proceed(pw) {
+        up.disabled = out.disabled = vote.disabled = true;
+        pending++;
+        doFire(id, pw).then(function () {
+          if (pw) store.set("bosspw", pw);
+          stampIt(st, "Уволен");
+          tr.classList.add("leaving");
+          wait(1250, function () { delete staff[id]; renderStaff(); });
         }, function () {
-          tr.classList.remove("leaving");
-          st.className = "stamp";
-          up.disabled = out.disabled = false;
-          toast("Уволить не получилось: нет связи с базой.");
+          up.disabled = out.disabled = vote.disabled = false;
+          if (shared) { store.set("bosspw", ""); askFire(p.name, proceed, true); }
+          else toast("Уволить не получилось.");
         }).then(function () { pending--; });
-      });
+      }
+      var saved = store.get("bosspw", "");
+      if (!shared) proceed("");
+      else if (saved && PW_RE.test(saved)) proceed(saved);
+      else askFire(p.name, proceed, false);
     });
     return tr;
   }
   function refreshStaff() {
     if (pending) return;
-    api.list().then(function (o) {
+    var extra = shared ? Promise.all([
+      req("GET", "/pwSet").catch(function () { return pwSet; }),
+      req("GET", "/votes/" + monthKey()).catch(function () { return null; })
+    ]) : Promise.resolve([false, null]);
+    Promise.all([api.list(), extra]).then(function (res) {
       if (pending) return;
-      staff = o; renderStaff(); setNote("ok");
+      staff = res[0];
+      pwSet = res[1][0] === true;
+      votes = res[1][1] && typeof res[1][1] === "object" ? res[1][1] : {};
+      renderStaff(); setNote("ok");
+      if (wantBoss) {
+        wantBoss = false;
+        if (!pwSet) { bossBox.hidden = false; $("#bossPw1").focus(); }
+        else toast("Пароль директора уже задан. Сменить его можно в консоли Firebase.");
+      }
     }, function () { setNote("error"); });
   }
   $("#hire").addEventListener("submit", function (e) {
@@ -1392,9 +1812,432 @@
   var v = store.get("visits", 0) + 1; store.set("visits", v);
   $("#visits").textContent = v;
 
+  /* ===== Дверь: ручка ===== */
+  var doorEl = $("#doorEl"), handleBtn = $("#handle"), handleCount = $("#handleCount"), bubble = $("#bubble");
+  var handleN = 0, myPulls = 0;
+  function showHandle() {
+    handleCount.textContent = "Ручку сегодня дёрнули " + fmt(handleN) + " " + plural(handleN, "раз", "раза", "раз") + ". Дверь не открылась ни разу.";
+  }
+  function loadHandle() {
+    if (!shared) { showHandle(); return; }
+    req("GET", "/handle/" + todayKey()).then(function (n) { if (typeof n === "number") handleN = n; showHandle(); }, function () {});
+  }
+  function say(text) { bubble.textContent = text; replay(bubble, "pop"); }
+  handleBtn.addEventListener("click", function () {
+    handleBtn.classList.add("pull");
+    replay(doorEl, "rattle");
+    setTimeout(function () { handleBtn.classList.remove("pull"); }, 220);
+    myPulls++;
+    handleN++; showHandle();
+    if (myPulls === 5) say("Да закрыто же!");
+    else if (myPulls === 15) say("Вы дёргаете ручку уже 15 раз. Это почти работа.");
+    else if (myPulls === 40) say("Ручка подала жалобу в профсоюз.");
+    if (shared) req("PUT", "/handle/" + todayKey(), { ".sv": { "increment": 1 } }).then(function (n) {
+      if (typeof n === "number" && n > handleN) { handleN = n; showHandle(); }
+    }, function () {});
+  });
+
+  /* ===== Дверь: звонок ===== */
+  var actx = null, rings = [], bellMuted = false;
+  var ANSWERS = [
+    "Никого нет.", "Мы закрыты.", "Кто там? А, не важно, всё равно закрыто.",
+    "Директор спит, перезвоните никогда.", "Тут никого нет. И нас тоже нет.",
+    "Курьер? Оставьте у двери. Нет, не открою.", "Звонок принят. Ответ: нет.",
+    "Обед. До понедельника.", "Если вы с работой, то вы ошиблись дверью."
+  ];
+  function ding() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      var t = actx.currentTime;
+      [[659.25, 0], [523.25, .4]].forEach(function (p) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.type = "sine"; o.frequency.value = p[0];
+        g.gain.setValueAtTime(.0001, t + p[1]);
+        g.gain.exponentialRampToValueAtTime(.3, t + p[1] + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, t + p[1] + 1.2);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t + p[1]); o.stop(t + p[1] + 1.3);
+      });
+    } catch (e) {}
+  }
+  $("#bell").addEventListener("click", function () {
+    if (bellMuted) { say("Звонок отключён за чрезмерный энтузиазм. Подождите."); return; }
+    var now = Date.now();
+    rings = rings.filter(function (t) { return now - t < 6000; }); rings.push(now);
+    replay(this, "ring");
+    ding();
+    if (rings.length >= 6) {
+      bellMuted = true;
+      say("Звонок отключён за чрезмерный энтузиазм. Включим через 15 секунд.");
+      setTimeout(function () { bellMuted = false; rings = []; }, 15000);
+      return;
+    }
+    say("…");
+    setTimeout(function () { say(pick(ANSWERS)); }, 900);
+  });
+
+  /* ===== Дверь: записки ===== */
+  var notesEl = $("#notes"), notes = {}, noteMsg = $("#noteMsg"), noteBy = $("#noteBy");
+  noteBy.value = getNick();
+  function notePos(id) {
+    var h = hash(id);
+    return { x: 3 + (h % 62), y: 7 + ((h >>> 8) % 70), r: ((h >>> 16) % 17) - 8 };
+  }
+  function renderNotes(freshId) {
+    notesEl.textContent = "";
+    var ids = Object.keys(notes).filter(function (k) {
+      var n = notes[k]; return n && typeof n.text === "string" && typeof n.by === "string";
+    }).sort(function (a, b) { return (notes[a].t || 0) - (notes[b].t || 0); }).slice(-30);
+    ids.forEach(function (id) {
+      var n = notes[id], pos = notePos(id);
+      var d = el("div", "note-s c" + ((+n.c || 0) % 5) + (id === freshId ? " new" : ""));
+      d.style.left = pos.x + "%"; d.style.top = pos.y + "%";
+      d.style.setProperty("--r", pos.r + "deg");
+      d.appendChild(el("span", null, n.text));
+      d.appendChild(el("small", null, "— " + n.by));
+      var x = el("button", "tear", "×");
+      x.type = "button"; x.setAttribute("aria-label", "Оторвать записку от " + n.by);
+      x.addEventListener("click", function () { tearNote(id, d); });
+      d.appendChild(x);
+      notesEl.appendChild(d);
+    });
+  }
+  function tearNote(id, d) {
+    d.classList.add("off");
+    var done = function () { delete notes[id]; renderNotes(); };
+    (shared ? req("DELETE", "/notes/" + id) : Promise.resolve()).then(function () {
+      setTimeout(done, reduce ? 0 : 600);
+    }, function () { d.classList.remove("off"); toast("Записка приклеена намертво: нет связи."); });
+  }
+  function loadNotes() {
+    if (!shared) { renderNotes(); return; }
+    req("GET", "/notes", undefined, 'orderBy="t"&limitToLast=30').then(function (o) {
+      notes = o && typeof o === "object" ? o : {};
+      renderNotes();
+    }, function () { noteMsg.textContent = "Записки не загрузились. Проверьте интернет."; });
+  }
+  $("#noteForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var ta = $("#noteText"), text = ta.value.replace(/\s+/g, " ").trim().slice(0, 80);
+    var by = noteBy.value.replace(/\s+/g, " ").trim().slice(0, 24) || "Аноним";
+    if (!text) { ta.focus(); return; }
+    if (by !== "Аноним") { store.set("nick", by); nickEl.value = by; }
+    var n = { text: text, by: by, c: Math.floor(Math.random() * 5) }, btn = this.querySelector("button");
+    btn.disabled = true;
+    var p = shared ? req("POST", "/notes", { text: n.text, by: n.by, c: n.c, t: { ".sv": "timestamp" } }).then(function (r) { return r.name; })
+      : Promise.resolve("l" + Date.now());
+    p.then(function (id) {
+      n.t = Date.now(); notes[id] = n;
+      renderNotes(id);
+      ta.value = "";
+      noteMsg.textContent = "Приклеено. Теперь её видят все.";
+    }, function () { noteMsg.textContent = "Не приклеилось: нет связи. Попробуйте ещё раз."; })
+      .then(function () { btn.disabled = false; });
+  });
+  setInterval(function () { if (current === "door" && !document.hidden) { loadNotes(); loadHandle(); } }, 20000);
+
+  /* ===== Конструктор отмазок ===== */
+  var EX = [
+    ["Я бы всё сделал, но", "Честно, я уже начал, но", "Всё было почти готово, но", "Я открыл ноутбук ровно в тот момент, когда",
+      "Я сел работать, однако", "Обстоятельства сложились так, что", "Не поверите, но", "Я был в шаге от успеха, когда"],
+    ["кот лёг на клавиатуру", "у соседа начался ремонт", "интернет ушёл в отпуск", "ноутбук решил обновиться",
+      "приехала бабушка с пирожками", "Луна вошла в Скорпиона", "флешку съела собака", "в общаге отключили свет",
+      "будильник объявил забастовку", "автобус уехал без меня", "Windows попросила перезагрузку", "голуби украли зарядку"],
+    ["и теперь всё придётся начинать заново.", "поэтому сдам в понедельник.", "так что это форс-мажор.",
+      "и я морально не готов продолжать.", "и файл исчез при загадочных обстоятельствах.", "поэтому прошу ещё неделю.",
+      "и это точно не моя вина.", "так что давайте сделаем вид, что срока не было."]
+  ];
+  var reels = $$(".reel"), exOut = $("#exOut"), exIdx = [0, 0, 0], exSpinning = false;
+  function exText() { return EX[0][exIdx[0]] + " " + EX[1][exIdx[1]] + ", " + EX[2][exIdx[2]]; }
+  function exPaint() {
+    reels.forEach(function (r, i) { r.textContent = EX[i][exIdx[i]]; });
+    exOut.textContent = exText();
+  }
+  exIdx = exIdx.map(function (_, i) { return Math.floor(Math.random() * EX[i].length); });
+  exPaint();
+  $("#exSpin").addEventListener("click", function () {
+    if (exSpinning) return;
+    var final = exIdx.map(function (v, i) {
+      var n; do { n = Math.floor(Math.random() * EX[i].length); } while (n === v && EX[i].length > 1);
+      return n;
+    });
+    if (reduce) { exIdx = final; exPaint(); return; }
+    exSpinning = true;
+    exOut.textContent = "Подбираем отмазку…";
+    var stopped = 0;
+    reels.forEach(function (r, i) {
+      r.classList.add("spin");
+      var iv = setInterval(function () { r.textContent = pick(EX[i]); }, 70);
+      setTimeout(function () {
+        clearInterval(iv);
+        exIdx[i] = final[i];
+        r.textContent = EX[i][final[i]];
+        r.classList.remove("spin");
+        if (++stopped === 3) { exOut.textContent = exText(); exSpinning = false; }
+      }, 600 + i * 380);
+    });
+  });
+  $("#exCopy").addEventListener("click", function () {
+    var btn = this;
+    try {
+      navigator.clipboard.writeText(exText()).then(function () { flash(btn, "Скопировано"); }, function () { flash(btn, "Не вышло, выделите вручную", 2200); });
+    } catch (e) { flash(btn, "Не вышло, выделите вручную", 2200); }
+  });
+
+  /* ===== Рейтинг лентяев ===== */
+  var boardEl = $("#lazyBoard");
+  function syncLazy() {
+    var name = getNick();
+    if (!shared || !name || S.total < 1) return Promise.resolve();
+    return req("PUT", "/lazy/" + uid, { name: name, n: Math.floor(S.total) }).catch(function () {});
+  }
+  function loadBoard() {
+    if (!shared) { boardEl.innerHTML = ""; boardEl.appendChild(el("li", "empty", "Рейтинг работает только с общей базой.")); return Promise.resolve(); }
+    return req("GET", "/lazy", undefined, 'orderBy="n"&limitToLast=10').then(function (o) {
+      o = o && typeof o === "object" ? o : {};
+      var ids = Object.keys(o).filter(function (k) { return o[k] && typeof o[k].name === "string" && typeof o[k].n === "number"; })
+        .sort(function (a, b) { return o[b].n - o[a].n; });
+      boardEl.textContent = "";
+      if (!ids.length) { boardEl.appendChild(el("li", "empty", "Пока никто не ленится официально. Будьте первым.")); return; }
+      ids.forEach(function (k) {
+        var li = el("li", k === uid ? "me" : null);
+        li.appendChild(el("b", null, o[k].name));
+        li.appendChild(document.createTextNode(": " + fmt(o[k].n) + " мин"));
+        boardEl.appendChild(li);
+      });
+    }, function () { boardEl.textContent = ""; boardEl.appendChild(el("li", "empty", "Рейтинг не загрузился.")); });
+  }
+  setInterval(function () { syncLazy().then(function () { if (current === "play" && !document.hidden) loadBoard(); }); }, 30000);
+
+  /* ===== Игра «Уклонись от задачи» ===== */
+  var tc = $("#task"), tx = tc.getContext("2d"), TW = 800, TH = 450;
+  var TASKS = ["Дедлайн", "Отчёт", "Созвон", "Правки", "Срочно!", "Лаба", "Курсовая", "Совещание", "Планёрка", "«На минутку»", "Переделать", "ТЗ v2"];
+  var G = { run: false, px: TW / 2, tx: TW / 2, items: [], t0: 0, last: 0, spawn: 0, keys: {} }, taskBest = store.get("taskBest", 0);
+  var taskInfo = $("#taskInfo"), taskBtn = $("#taskStart");
+  taskInfo.textContent = "Ваш рекорд: " + (taskBest / 1000).toFixed(1) + " с.";
+  function rr(x, y, w, h, r) { tx.beginPath(); tx.moveTo(x + r, y); tx.arcTo(x + w, y, x + w, y + h, r); tx.arcTo(x + w, y + h, x, y + h, r); tx.arcTo(x, y + h, x, y, r); tx.arcTo(x, y, x + w, y, r); tx.closePath(); }
+  function drawSofa(x) {
+    var y = TH - 66;
+    tx.fillStyle = "#ffd21f"; tx.strokeStyle = "#fbfaf5"; tx.lineWidth = 4;
+    rr(x - 46, y + 10, 92, 34, 10); tx.fill(); tx.stroke();
+    rr(x - 52, y, 18, 44, 8); tx.fill(); tx.stroke();
+    rr(x + 34, y, 18, 44, 8); tx.fill(); tx.stroke();
+    tx.font = "30px sans-serif"; tx.textAlign = "center"; tx.textBaseline = "middle";
+    tx.fillText("😴", x, y + 4);
+  }
+  function drawTask(it) {
+    tx.fillStyle = "#fbfaf5"; tx.strokeStyle = "#e0301e"; tx.lineWidth = 4;
+    rr(it.x, it.y, it.w, it.h, 6); tx.fill(); tx.stroke();
+    tx.fillStyle = "#0e1330"; tx.font = "20px Impact, 'Arial Narrow', sans-serif"; tx.textAlign = "center"; tx.textBaseline = "middle";
+    tx.fillText(it.label, it.x + it.w / 2, it.y + it.h / 2 + 1);
+  }
+  function drawScene(msg) {
+    tx.fillStyle = "#0e1330"; tx.fillRect(0, 0, TW, TH);
+    tx.fillStyle = "rgba(255,255,255,.06)";
+    for (var gx = 0; gx < TW; gx += 50) tx.fillRect(gx, 0, 2, TH);
+    tx.fillStyle = "#fbfaf5"; tx.fillRect(0, TH - 20, TW, 4);
+    G.items.forEach(drawTask);
+    drawSofa(G.px);
+    if (G.run) {
+      tx.fillStyle = "#ffd21f"; tx.font = "26px Impact, 'Arial Narrow', sans-serif"; tx.textAlign = "left"; tx.textBaseline = "top";
+      tx.fillText(((performance.now() - G.t0) / 1000).toFixed(1) + " с без работы", 16, 14);
+    }
+    if (msg) {
+      tx.fillStyle = "rgba(14,19,48,.78)"; tx.fillRect(0, TH / 2 - 60, TW, 120);
+      tx.fillStyle = "#ffd21f"; tx.font = "34px Impact, 'Arial Narrow', sans-serif"; tx.textAlign = "center"; tx.textBaseline = "middle";
+      tx.fillText(msg[0], TW / 2, TH / 2 - 18);
+      tx.fillStyle = "#fbfaf5"; tx.font = "20px Georgia, serif";
+      tx.fillText(msg[1], TW / 2, TH / 2 + 22);
+    }
+  }
+  drawScene(["Уклонись от задачи", "Нажмите «Начать уклоняться»"]);
+  function toCanvasX(clientX) { var r = tc.getBoundingClientRect(); return (clientX - r.left) / r.width * TW; }
+  tc.addEventListener("pointermove", function (e) { G.tx = toCanvasX(e.clientX); });
+  tc.addEventListener("pointerdown", function (e) { G.tx = toCanvasX(e.clientX); if (!G.run) startTask(); });
+  addEventListener("keydown", function (e) {
+    if (!G.run) return;
+    if (["ArrowLeft", "ArrowRight", "a", "d", "ф", "в"].indexOf(e.key) >= 0) { G.keys[e.key] = true; e.preventDefault(); }
+  });
+  addEventListener("keyup", function (e) { G.keys[e.key] = false; });
+  function startTask() {
+    if (G.run) return;
+    G.run = true; G.items = []; G.t0 = G.last = performance.now(); G.spawn = 0; G.px = G.tx = TW / 2;
+    taskBtn.disabled = true;
+    taskInfo.textContent = "Уклоняйтесь! Ваш рекорд: " + (taskBest / 1000).toFixed(1) + " с.";
+    requestAnimationFrame(stepTask);
+  }
+  function endTask(hit) {
+    G.run = false; taskBtn.disabled = false; taskBtn.textContent = "Ещё раз";
+    var ms = Math.round(performance.now() - G.t0), rec = "";
+    if (ms > taskBest) { taskBest = ms; store.set("taskBest", ms); rec = " Новый рекорд!"; var r = tc.getBoundingClientRect(); burst(r.left + r.width / 2, r.top + r.height / 2, 80); }
+    var s = (ms / 1000).toFixed(1);
+    drawScene(hit ? ["Вас настигла задача «" + hit + "»", "Продержались " + s + " с." + rec] : ["Пауза", "Продержались " + s + " с."]);
+    taskInfo.textContent = "Продержались " + s + " с." + rec + " Ваш рекорд: " + (taskBest / 1000).toFixed(1) + " с.";
+  }
+  function stepTask(now) {
+    if (!G.run) return;
+    if (current !== "play" || document.hidden || bossOn) { endTask(null); return; }
+    var dt = Math.min(48, now - G.last) / 16.67; G.last = now;
+    var el2 = (now - G.t0) / 1000;
+    if (G.keys.ArrowLeft || G.keys.a || G.keys["ф"]) G.tx = G.px - 40;
+    if (G.keys.ArrowRight || G.keys.d || G.keys["в"]) G.tx = G.px + 40;
+    G.tx = Math.max(52, Math.min(TW - 52, G.tx));
+    G.px += (G.tx - G.px) * Math.min(1, .25 * dt);
+    G.spawn -= dt * 16.67;
+    if (G.spawn <= 0) {
+      var label = pick(TASKS), w = 30 + label.length * 11;
+      G.items.push({ x: Math.random() * (TW - w), y: -40, w: w, h: 38, vy: 2.6 + Math.min(5, el2 * .12) + Math.random() * 1.4, label: label });
+      G.spawn = Math.max(260, 900 - el2 * 22);
+    }
+    var sx = G.px - 50, sy = TH - 66, hit = null;
+    G.items.forEach(function (it) {
+      it.y += it.vy * dt;
+      if (it.x < sx + 100 && it.x + it.w > sx && it.y < sy + 44 && it.y + it.h > sy + 6) hit = it.label;
+    });
+    G.items = G.items.filter(function (it) { return it.y < TH; });
+    drawScene();
+    if (hit) { endTask(hit); return; }
+    requestAnimationFrame(stepTask);
+  }
+  taskBtn.addEventListener("click", startTask);
+
+  /* ===== Сколько человек не работает ===== */
+  var onlineEl = $("#online"), srvOffset = 0;
+  function countOnline() {
+    req("GET", "/online").then(function (o) {
+      o = o && typeof o === "object" ? o : {};
+      var now = Date.now() + srvOffset, n = 0, stale = [];
+      Object.keys(o).forEach(function (k) {
+        var t = o[k];
+        if (typeof t !== "number") return;
+        if (now - t < 75000) n++; else if (now - t > 600000) stale.push(k);
+      });
+      stale.slice(0, 5).forEach(function (k) { req("DELETE", "/online/" + k).catch(function () {}); });
+      onlineEl.textContent = Math.max(1, n);
+    }, function () {});
+  }
+  function beat() {
+    if (!shared || document.hidden) return;
+    req("PUT", "/online/" + sid, { ".sv": "timestamp" }).then(function (ts) {
+      if (typeof ts === "number") srvOffset = ts - Date.now();
+      countOnline();
+    }, function () {});
+  }
+  beat();
+  setInterval(beat, 30000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) beat(); });
+  addEventListener("pagehide", function () {
+    if (!shared) return;
+    try { fetch(DB_URL + "/online/" + sid + ".json", { method: "DELETE", keepalive: true }); } catch (e) {}
+  });
+
+  /* ===== Режим «Шеф идёт» ===== */
+  var excel = $("#excel"), bossOn = false, titleBeforeBoss = "", lastEsc = 0;
+  function buildExcel() {
+    var rows = ["Выручка", "Себестоимость", "Валовая маржа", "Аренда", "ФОТ", "Маркетинг", "Логистика", "Канцтовары",
+      "Связь", "Обучение персонала", "Прочие расходы", "EBITDA", "Амортизация", "Налоги", "Чистая прибыль"];
+    var cols = ["Показатель", "Октябрь", "Ноябрь", "Декабрь", "Q4 план", "Q4 факт", "Отклонение", "Итого"];
+    var t = $("#xlTable"), head = el("tr");
+    head.appendChild(el("th", "rn", ""));
+    "ABCDEFGH".split("").forEach(function (c) { head.appendChild(el("th", null, c)); });
+    t.appendChild(head);
+    var money = function (n) { return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    var r1 = el("tr", "head"); r1.appendChild(el("td", "rn", 1)); r1.appendChild(el("td", null, "Квартальный отчёт, Q4"));
+    for (var i = 0; i < 7; i++) r1.appendChild(el("td")); t.appendChild(r1);
+    var r2 = el("tr", "head"); r2.appendChild(el("td", "rn", 2));
+    cols.forEach(function (c) { r2.appendChild(el("td", null, c)); }); t.appendChild(r2);
+    for (var k = 0; k < 38; k++) {
+      var tr = el("tr" + "", k === 37 ? "sum" : null), name = k === 37 ? "Итого" : rows[k % rows.length] + (k >= rows.length ? " (филиал " + (Math.floor(k / rows.length) + 1) + ")" : "");
+      tr.appendChild(el("td", "rn", k + 3));
+      tr.appendChild(el("td", null, name));
+      var a = 120000 + (hash("x" + k) % 900000), sum = 0;
+      for (var j = 0; j < 6; j++) {
+        var v = j === 5 ? sum : Math.round(a * (0.8 + ((hash("y" + k + j) % 40) / 100)));
+        if (j < 3) sum += v;
+        var td = el("td", "num", money(v));
+        if (k === 37 && j === 5) td.classList.add("sel");
+        tr.appendChild(td);
+      }
+      tr.appendChild(el("td", "num", k === 30 ? "мы всё равно не работаем" : money(sum)));
+      t.appendChild(tr);
+    }
+    excel.setAttribute("data-built", "1");
+  }
+  function bossToggle(on) {
+    bossOn = on === undefined ? !bossOn : on;
+    if (bossOn) {
+      if (!excel.getAttribute("data-built")) buildExcel();
+      excel.hidden = false;
+      titleBeforeBoss = document.title;
+      document.title = "Квартальный_отчёт_Q4_финал_v7.xlsx - Excel";
+    } else {
+      excel.hidden = true;
+      document.title = titleBeforeBoss || "Не работаем";
+    }
+  }
+  $("#panic").addEventListener("click", function () { bossToggle(true); });
+  excel.addEventListener("dblclick", function () { bossToggle(false); });
+  addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (bossOn) { bossToggle(false); return; }
+    var t = e.target;
+    if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+    var now = Date.now();
+    if (now - lastEsc < 600) { bossToggle(true); lastEsc = 0; } else lastEsc = now;
+  });
+
+  /* ===== Ночная смена ===== */
+  var hourNow = new Date().getHours();
+  var night = qsp.has("night") || (!qsp.has("day") && (hourNow >= 23 || hourNow < 6));
+  if (night) {
+    document.body.classList.add("night");
+    setTimeout(function () { toast("Ночная смена. По сайту ходит охранник, ведите себя тихо."); }, 2600);
+    if (!reduce) {
+      var guard = $("#guard"), gx = innerWidth * .3, gy = innerHeight * .5, gtx = gx, gty = gy;
+      guard.hidden = false;
+      var pickG = function () { gtx = 80 + Math.random() * Math.max(1, innerWidth - 160); gty = 80 + Math.random() * Math.max(1, innerHeight - 160); };
+      pickG();
+      (function walk() {
+        var dx = gtx - gx, dy = gty - gy, d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 4) pickG(); else { gx += dx / d * 1.7; gy += dy / d * 1.7; }
+        guard.style.setProperty("--gx", gx + "px");
+        guard.style.setProperty("--gy", gy + "px");
+        requestAnimationFrame(walk);
+      })();
+    }
+  }
+
+  /* ===== Кот ===== */
+  var cat = $("#cat"), catSay = $("#catSay"), catBusy = false;
+  var CAT_SAYS = ["Мяу", "Мур", "Я тут главный", "Где еда?", "Не работаю", "Мяу?"];
+  var CAT_CLICK = ["Кот не продаётся.", "Кот на испытательном сроке уже 4 года.", "Кот уволен быть не может: он не нанимался.", "Мяу. Это значит «отстаньте»."];
+  function scheduleCat() { setTimeout(catWalk, 60000 + Math.random() * 90000); }
+  function catWalk() {
+    if (catBusy || reduce || bossOn || document.hidden || !cat.animate) { scheduleCat(); return; }
+    catBusy = true;
+    var dir = Math.random() < .5 ? 1 : -1, W = innerWidth, w = 104;
+    var from = dir > 0 ? -w - 20 : W + 20, to = dir > 0 ? W + 20 : -w - 20;
+    var mid = W * (.2 + Math.random() * .6), sit = Math.random() < .6;
+    cat.classList.add("on"); cat.classList.toggle("left", dir < 0); cat.classList.remove("sit");
+    var move = function (a, b) {
+      return cat.animate([{ transform: "translateX(" + a + "px)" }, { transform: "translateX(" + b + "px)" }],
+        { duration: Math.abs(b - a) / .12, easing: "linear", fill: "forwards" }).finished;
+    };
+    var done = function () { cat.classList.remove("on", "sit"); catBusy = false; scheduleCat(); };
+    var p = sit ? move(from, mid).then(function () {
+      catSay.textContent = pick(CAT_SAYS);
+      cat.classList.add("sit");
+      return new Promise(function (r) { setTimeout(r, 3500); });
+    }).then(function () { cat.classList.remove("sit"); return move(mid, to); }) : move(from, to);
+    p.then(done, done);
+  }
+  cat.addEventListener("click", function () { toast(pick(CAT_CLICK)); });
+  setTimeout(catWalk, 20000 + Math.random() * 25000);
+
   /* ===== Старт ===== */
   var startHash = location.hash.slice(1);
-  var startPage = PAGES[startHash] ? startHash : "home";
+  var startPage = wantBoss ? "staff" : PAGES[startHash] ? startHash : "home";
   show(startPage, true);
   var t0 = Date.now();
   function begin() {

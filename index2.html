@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Не работаем</title>
+<meta name="description" content="Вывеска, которая не открывается. Расписание, причины закрытия, комната отдыха и штат бездельников.">
+<meta name="theme-color" content="#1d2fd0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23ffd21f'/%3E%3Ctext x='32' y='45' font-size='34' text-anchor='middle' font-family='Impact,sans-serif' fill='%230e1330'%3EZzz%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --wall: #1d2fd0;
+    --wall-d: #131f94;
+    --sign: #ffd21f;
+    --chalk: #fbfaf5;
+    --stamp: #e0301e;
+    --ink: #0e1330;
+    --green: #0a8f5c;
+    --display: Impact, Haettenschweiler, "Arial Narrow Bold", "Roboto Condensed", sans-serif;
+    --text: Georgia, "Times New Roman", serif;
+    --hand: "Segoe Print", "Bradley Hand", "Marker Felt", "Comic Sans MS", cursive;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { overflow-x: hidden; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--wall);
+    color: var(--chalk);
+    font-family: var(--text);
+    font-size: 18px;
+    line-height: 1.6;
+    transition: background-color .4s;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.07) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(255,255,255,.07) 2px, transparent 2px);
+    background-size: 88px 88px;
+  }
+  body.loading { overflow: hidden; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 4px solid var(--chalk); outline-offset: 3px; }
+  .paper :focus-visible, .on-yellow:focus-visible { outline-color: var(--ink); }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--sign); color: var(--ink); padding: 8px 14px; z-index: 300; }
+  .skip:focus { left: 8px; }
+
+  /* ===== Рольставни ===== */
+  #shutter {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    transform: translateY(-101%);
+    background: repeating-linear-gradient(180deg, #a3abc0 0, #bcc3d6 20px, #7a8299 20px, #7a8299 24px);
+    pointer-events: none;
+    will-change: transform;
+  }
+  #shutter.closed { transform: translateY(0); pointer-events: auto; }
+  #shutter.closing { animation: sh-close .95s forwards; pointer-events: auto; }
+  #shutter.opening { animation: sh-open 1.25s forwards; }
+  @keyframes sh-close {
+    0%   { transform: translateY(-101%); animation-timing-function: cubic-bezier(.55, 0, .9, .5); }
+    52%  { transform: translateY(0); animation-timing-function: ease-out; }
+    66%  { transform: translateY(-20px); animation-timing-function: ease-in; }
+    78%  { transform: translateY(0); animation-timing-function: ease-out; }
+    88%  { transform: translateY(-6px); animation-timing-function: ease-in; }
+    100% { transform: translateY(0); }
+  }
+  @keyframes sh-open {
+    0%   { transform: translateY(0); animation-timing-function: ease-out; }
+    12%  { transform: translateY(-30px); animation-timing-function: ease-in; }
+    22%  { transform: translateY(-14px); }
+    40%  { transform: translateY(-14px); animation-timing-function: cubic-bezier(.45, 0, .8, .3); }
+    100% { transform: translateY(-101%); }
+  }
+  .shutter-handle {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+    background: #4a5167; border-top: 8px solid #343b4e;
+  }
+  .shutter-handle::after {
+    content: ""; position: absolute; left: 50%; top: 6px; width: 22px; height: 22px; margin-left: -11px;
+    border-radius: 50%; background: var(--sign); border: 4px solid var(--ink);
+  }
+  .shutter-label {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) rotate(-2deg);
+    width: min(520px, 86vw);
+    text-align: center;
+    background: var(--sign); color: var(--ink);
+    border: 6px solid var(--ink);
+    padding: 20px 28px 22px;
+    box-shadow: 10px 10px 0 rgba(14, 19, 48, .45);
+  }
+  .shutter-label b { display: block; font-family: var(--display); font-weight: 400; font-size: clamp(36px, 8vw, 60px); line-height: 1.05; }
+  .shutter-label span { display: block; margin-top: 6px; font-style: italic; }
+
+  /* ===== Шапка ===== */
+  .bar {
+    position: relative; z-index: 20;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 16px 24px;
+    max-width: 1100px; width: 100%; margin: 0 auto;
+  }
+  .brand {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-family: var(--display); font-size: 30px; letter-spacing: .02em; color: var(--chalk);
+    text-shadow: 3px 3px 0 var(--ink);
+  }
+  .bar nav { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .bar nav a {
+    font-family: var(--display); font-size: 20px; letter-spacing: .02em;
+    color: var(--chalk); text-decoration: none;
+    padding: 4px 14px; border: 3px solid transparent; border-radius: 8px;
+  }
+  .bar nav a:hover { border-color: var(--chalk); }
+  .bar nav a.on { background: var(--sign); color: var(--ink); border-color: var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+  .btn {
+    font-family: var(--display); font-size: 22px; letter-spacing: .03em;
+    background: var(--sign); color: var(--ink);
+    border: 4px solid var(--ink); border-radius: 10px;
+    padding: 8px 20px; cursor: pointer;
+    box-shadow: 5px 5px 0 var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--ink); }
+  .btn:active { transform: translate(4px, 4px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.alt { background: var(--chalk); }
+  .btn.danger { background: var(--stamp); color: var(--chalk); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: 5px 5px 0 var(--ink); }
+  .btn.small { font-size: 18px; padding: 4px 14px; box-shadow: 3px 3px 0 var(--ink); }
+  .btn.small:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .party[aria-pressed="true"] { background: var(--stamp); color: var(--chalk); }
+
+  /* ===== Страницы ===== */
+  main { position: relative; z-index: 10; flex: 1; width: 100%; overflow: clip; }
+  .page { display: none; max-width: 1100px; margin: 0 auto; padding: 16px 24px 56px; }
+  .page.on { display: block; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: .01em; margin: 0; }
+  h1 { font-size: clamp(46px, 7.4vw, 96px); line-height: .96; text-shadow: 5px 5px 0 var(--ink); }
+  h2.title { font-size: clamp(40px, 6vw, 68px); line-height: 1; text-shadow: 4px 4px 0 var(--ink); margin-bottom: 28px; }
+  .lede { max-width: 38ch; font-size: 21px; margin: 22px 0 32px; }
+  .paper { background: var(--chalk); color: var(--ink); box-shadow: 10px 10px 0 var(--wall-d); }
+
+  /* ===== Главная ===== */
+  .home-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: 48px; align-items: start; }
+  .hang { order: 2; }
+  .swing { width: min(340px, 82vw); margin: 0 auto; transform-origin: 50% 10px; }
+  .swing.enter { animation: drop .9s cubic-bezier(.2, .9, .3, 1.15) both, swing 3.6s .9s ease-in-out both; }
+  .swing.kick { animation: swing2 1.8s ease-out both; }
+  @keyframes drop { from { transform: translateY(-130%); } to { transform: translateY(0); } }
+  @keyframes swing {
+    0% { transform: rotate(0); } 12% { transform: rotate(10deg); } 28% { transform: rotate(-7.5deg); }
+    44% { transform: rotate(5deg); } 60% { transform: rotate(-3deg); } 78% { transform: rotate(1.4deg); } 100% { transform: rotate(0); }
+  }
+  @keyframes swing2 {
+    0% { transform: rotate(0); } 18% { transform: rotate(-7deg); } 40% { transform: rotate(4.5deg); }
+    62% { transform: rotate(-2.4deg); } 82% { transform: rotate(1deg); } 100% { transform: rotate(0); }
+  }
+  .strings { display: block; width: 100%; height: auto; }
+  .strings line { stroke: var(--chalk); stroke-width: 3; }
+  .nail { fill: var(--sign); stroke: var(--ink); stroke-width: 3; }
+  .sign {
+    display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+    perspective: 900px; margin-top: -4px;
+  }
+  .sign.fall { animation: fall 1.1s cubic-bezier(.5, 0, .9, .6) forwards; transform-origin: 85% 0; pointer-events: none; }
+  .sign.gone { visibility: hidden; }
+  @keyframes fall {
+    0%   { transform: rotate(0); }
+    18%  { transform: rotate(-16deg); }
+    30%  { transform: translateY(-10px) rotate(-11deg); }
+    100% { transform: translateY(150vh) rotate(52deg); }
+  }
+  .plate {
+    position: relative; display: block; aspect-ratio: 340 / 220;
+    transform-style: preserve-3d;
+    transition: transform .8s cubic-bezier(.3, 1.5, .5, 1);
+  }
+  .plate.flip { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    border: 8px solid var(--ink); border-radius: 16px;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    box-shadow: 9px 9px 0 var(--wall-d);
+  }
+  .face.front { background: var(--sign); color: var(--ink); }
+  .face.back { background: var(--stamp); color: var(--chalk); transform: rotateY(180deg); }
+  .face .big { font-family: var(--display); font-size: clamp(54px, 15vw, 74px); line-height: 1; letter-spacing: .05em; }
+  .face .note { font-family: var(--hand); font-size: 20px; transform: rotate(-3deg); }
+  .hole { position: absolute; top: 12px; width: 16px; height: 16px; border-radius: 50%; background: var(--wall); border: 3px solid var(--ink); z-index: 2; }
+  .hole.l { left: calc(14.1% - 8px); }
+  .hole.r { right: calc(14.1% - 8px); }
+  .aside { text-align: center; font-style: italic; margin: 28px 0 0; min-height: 3.2em; }
+  .rehang { display: block; margin: 16px auto 0; }
+
+  /* Календарь */
+  .cal { padding: 18px 18px 20px; }
+  .cal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .cal-head h3 { font-size: 32px; flex: 1 1 auto; margin-right: 8px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 14px; }
+  .cal-grid.slide-l { animation: slide-l .32s ease-out; }
+  .cal-grid.slide-r { animation: slide-r .32s ease-out; }
+  @keyframes slide-l { from { transform: translateX(36px); opacity: 0; } }
+  @keyframes slide-r { from { transform: translateX(-36px); opacity: 0; } }
+  .dow { font-weight: 700; font-size: 14px; text-align: center; }
+  .dow.we { color: var(--stamp); }
+  .day {
+    display: flex; flex-direction: column; justify-content: space-between; gap: 2px;
+    min-height: 66px; padding: 4px 6px; text-align: left; cursor: pointer;
+    background: #fff; color: var(--ink);
+    border: 2px solid rgba(14, 19, 48, .25); border-left: 7px solid var(--c, var(--stamp)); border-radius: 6px;
+    font-family: var(--text);
+  }
+  .day:hover { background: #fff8d6; }
+  .day .d { font-family: var(--display); font-size: 21px; line-height: 1; }
+  .day .k { font-size: 11.5px; line-height: 1.15; }
+  .day.today .d { color: var(--chalk); background: var(--stamp); border-radius: 50%; width: 1.5em; height: 1.5em; display: grid; place-items: center; font-size: 17px; }
+  .day[aria-pressed="true"] { border-color: var(--ink); border-left-color: var(--c, var(--stamp)); box-shadow: 3px 3px 0 var(--ink); background: #fff3b0; }
+  .t-weekend { background: #e6e9f6; }
+  .t-holiday { background: #fff3b0; }
+  .t-open { background: #d3f5e2; }
+  .cal-detail { margin-top: 16px; border-top: 2px dashed var(--ink); padding-top: 12px; min-height: 5.4em; }
+  .cal-detail b { display: block; font-family: var(--display); font-weight: 400; font-size: 24px; line-height: 1.15; }
+  .cal-detail p { margin: 4px 0 0; }
+  .cal-detail.pop { animation: pop .3s ease-out; }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } }
+  .legend { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+  .legend li { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 3px; background: var(--c); border: 2px solid var(--ink); }
+
+  /* ===== Причины ===== */
+  .stage { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 48px; align-items: center; }
+  .stage .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .sheet {
+    position: relative; max-width: 580px; padding: 40px 38px 28px;
+    transform: rotate(-1.4deg);
+  }
+  .sheet::before, .sheet::after {
+    content: ""; position: absolute; top: -15px; width: 100px; height: 30px; background: rgba(255, 210, 31, .85);
+  }
+  .sheet::before { left: 22px; transform: rotate(-6deg); }
+  .sheet::after { right: 22px; transform: rotate(5deg); }
+  .sheet h3 { font-size: 46px; color: var(--stamp); letter-spacing: .03em; margin-bottom: 10px; }
+  .sheet p { font-size: 24px; margin: 0 0 .7em; }
+  .sheet .sign-off { font-family: var(--hand); font-size: 22px; margin: 18px 0 0; transform: rotate(-2deg); }
+  .sheet.tear { animation: tear .55s cubic-bezier(.5, 0, .9, .4) forwards; }
+  .sheet.pin { animation: pin .6s cubic-bezier(.2, .9, .3, 1.25) both; }
+  @keyframes tear { to { transform: translate(140px, 130%) rotate(26deg); opacity: 0; } }
+  @keyframes pin { from { transform: translateY(-70px) rotate(-8deg); opacity: 0; } to { transform: rotate(-1.4deg); opacity: 1; } }
+  .book { margin-top: 64px; max-width: 760px; padding: 22px 24px 18px; }
+  .book h3 { font-size: 34px; }
+  .book > p { margin: 4px 0 0; }
+  .book form { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+  .book textarea {
+    font: inherit; font-size: 18px; min-height: 92px; padding: 10px 14px; resize: vertical;
+    background: #fff; color: var(--ink); border: 4px solid var(--ink); border-radius: 10px;
+  }
+  .book form .btn { align-self: flex-start; }
+  .complaints { list-style: none; margin: 18px 0 0; padding: 0; }
+  .complaints li { position: relative; border-top: 2px dashed var(--ink); padding: 12px 150px 12px 0; }
+  .complaints li q { font-style: italic; overflow-wrap: anywhere; }
+  .complaints li small { display: block; margin-top: 4px; font-size: 15px; }
+
+  /* Печать (общая) */
+  .stamp {
+    position: absolute; right: 12px; top: 50%; margin-top: -22px;
+    border: 4px solid var(--stamp); color: var(--stamp); border-radius: 6px;
+    font-family: var(--display); font-size: 26px; line-height: 1.25; padding: 0 10px; white-space: nowrap;
+    transform: rotate(-9deg) scale(0); opacity: 0; pointer-events: none;
+  }
+  .stamp.green { border-color: var(--green); color: var(--green); }
+  .stamp.hit { animation: slam .38s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+  .stamp.shown { transform: rotate(-9deg); opacity: .92; }
+  @keyframes slam {
+    0% { transform: rotate(-9deg) scale(3.4); opacity: 0; }
+    55% { opacity: 1; }
+    100% { transform: rotate(-9deg) scale(1); opacity: .92; }
+  }
+
+  /* ===== Развлечения ===== */
+  .rest { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 44px; align-items: start; }
+  .lazy-wrap { text-align: center; }
+  .lazy {
+    width: 230px; height: 230px; border-radius: 50%; cursor: pointer;
+    background: var(--stamp); color: var(--chalk);
+    border: 8px solid var(--ink);
+    font-family: var(--display); font-size: 40px; letter-spacing: .05em;
+    box-shadow: inset 0 0 0 8px var(--stamp), inset 0 0 0 11px var(--chalk), 0 11px 0 var(--ink);
+    transition: transform .06s, box-shadow .06s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lazy:active { transform: translateY(9px); box-shadow: inset 0 0 0 8px var(--stamp), inset 0 0 0 11px var(--chalk), 0 2px 0 var(--ink); }
+  .score { font-family: var(--display); font-size: 44px; line-height: 1; margin: 30px 0 4px; text-shadow: 3px 3px 0 var(--ink); }
+  .rate { margin: 0; font-style: italic; }
+  .receipt { text-align: left; margin-top: 32px; padding: 16px 20px 8px; }
+  .receipt h3 { font-size: 28px; margin-bottom: 4px; }
+  .receipt ul { list-style: none; margin: 0; padding: 0; }
+  .receipt li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; align-items: center; padding: 11px 0; border-top: 2px dashed var(--ink); }
+  .receipt li b { font-family: var(--display); font-weight: 400; font-size: 21px; }
+  .receipt li small { grid-column: 1; font-size: 15px; }
+  .receipt li .btn { grid-column: 2; grid-row: 1 / span 2; }
+  .float { position: fixed; z-index: 150; pointer-events: none; font-family: var(--display); font-size: 32px; color: var(--sign); text-shadow: 3px 3px 0 var(--ink); animation: up 1s ease-out forwards; }
+  @keyframes up { to { transform: translateY(-110px); opacity: 0; } }
+  .react {
+    display: block; width: 100%; min-height: 156px; padding: 18px 22px; text-align: left; cursor: pointer;
+    background: var(--ink); color: var(--chalk);
+    border: 6px solid var(--chalk); border-radius: 12px;
+    font-family: var(--display); font-size: 32px; line-height: 1.15;
+    transition: background-color .12s;
+  }
+  .react small { display: block; margin-top: 8px; font-family: var(--text); font-size: 18px; line-height: 1.4; }
+  .react.wait { background: var(--stamp); }
+  .react.go { background: #12b76a; color: var(--ink); }
+  .react.early { background: var(--sign); color: var(--ink); }
+  .daybest { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: end; gap: 10px 20px; }
+  .daybest-line { margin: 0; flex: 1 1 220px; font-family: var(--display); font-size: 24px; line-height: 1.2; text-shadow: 2px 2px 0 var(--ink); }
+  .daybest-line.beat { animation: pop .4s ease-out; color: var(--sign); }
+  .nick { display: flex; flex-direction: column; font-size: 15px; flex: 0 1 200px; }
+  .nick input { font: inherit; font-size: 18px; padding: 6px 10px; margin-top: 4px; background: var(--chalk); color: var(--ink); border: 4px solid var(--ink); border-radius: 8px; }
+  .play-h { font-size: 30px; margin: 0 0 12px; text-shadow: 3px 3px 0 var(--ink); }
+  .side > * + * { margin-top: 36px; }
+  .arena { position: relative; height: 190px; border: 4px dashed var(--chalk); border-radius: 12px; overflow: hidden; touch-action: none; cursor: default; }
+  .arena .btn { position: absolute; left: 18px; top: 68px; pointer-events: none; transition: left .16s cubic-bezier(.2, .9, .3, 1.2), top .16s cubic-bezier(.2, .9, .3, 1.2); }
+  .arena-note { margin: 10px 0 0; font-style: italic; min-height: 3em; }
+
+  /* ===== Штат ===== */
+  table.roster { width: 100%; border-collapse: collapse; }
+  .roster th { font-family: var(--display); font-weight: 400; font-size: 22px; text-align: left; padding: 14px 18px; border-bottom: 4px solid var(--ink); }
+  .roster td { padding: 13px 18px; border-bottom: 2px solid rgba(14, 19, 48, .22); vertical-align: middle; }
+  .roster td.who { position: relative; padding-right: 150px; }
+  .roster tr.boss { background: #fff3b0; }
+  .roster tr.leaving { opacity: 0; transition: opacity .45s .75s; }
+  .roster tr.shake td { animation: shake .45s; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }
+  .nm { font-family: var(--display); font-size: 25px; overflow-wrap: anywhere; }
+  .tag { display: inline-block; margin-left: 8px; font-size: 13px; line-height: 1.5; border: 2px solid var(--ink); border-radius: 4px; padding: 0 6px; vertical-align: 5px; white-space: nowrap; }
+  .acts { white-space: nowrap; }
+  .acts .btn + .btn { margin-left: 8px; }
+  .hire { display: flex; gap: 12px; flex-wrap: wrap; padding: 18px; border-top: 4px solid var(--ink); }
+  .hire input {
+    flex: 1 1 220px; font: inherit; font-size: 20px; padding: 8px 14px;
+    background: #fff; color: var(--ink); border: 4px solid var(--ink); border-radius: 10px;
+  }
+  .hire-msg { margin: 0; padding: 0 18px; min-height: 1.6em; font-weight: 700; }
+  .roster-note { padding: 6px 18px 18px; margin: 0; font-style: italic; font-size: 16px; }
+  .empty td { font-style: italic; }
+
+  /* ===== Бегущая строка, подвал, тост ===== */
+  .ticker { position: relative; z-index: 10; overflow: hidden; background: var(--sign); color: var(--ink); border-block: 6px solid var(--ink); }
+  .track { display: flex; width: max-content; animation: run 50s linear infinite; }
+  body.party .track { animation-duration: 9s; }
+  .track span { display: flex; align-items: center; gap: 28px; padding: 8px 0 8px 28px; white-space: nowrap; font-family: var(--display); font-size: 28px; }
+  .track span::after { content: ""; width: 12px; height: 12px; background: var(--ink); transform: rotate(45deg); }
+  @keyframes run { to { transform: translateX(-50%); } }
+  footer { position: relative; z-index: 10; max-width: 1100px; width: 100%; margin: 0 auto; padding: 22px 24px 30px; font-size: 16px; display: flex; flex-wrap: wrap; gap: 6px 28px; }
+  #cd { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: .04em; }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 120; pointer-events: none; }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 160;
+    transform: translate(-50%, 180%);
+    max-width: min(520px, 90vw);
+    background: var(--ink); color: var(--chalk);
+    border: 4px solid var(--sign); border-radius: 10px;
+    padding: 12px 18px; box-shadow: 6px 6px 0 rgba(0, 0, 0, .35);
+    transition: transform .35s cubic-bezier(.3, 1.4, .5, 1);
+  }
+  #toast.on { transform: translate(-50%, 0); }
+
+  /* ===== Корпоратив ===== */
+  body.party { animation: wall 2.4s steps(1) infinite; }
+  @keyframes wall {
+    0% { background-color: #1d2fd0; } 20% { background-color: #c21d7a; } 40% { background-color: #0a8f5c; }
+    60% { background-color: #7a2bd6; } 80% { background-color: #d46a0a; }
+  }
+
+  @media (max-width: 860px) {
+    .home-grid, .stage, .rest { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .hang { order: -1; }
+    .bar nav { margin-left: 0; width: 100%; }
+    .roster th, .roster td { padding: 10px 10px; }
+    .roster td.who { padding-right: 10px; }
+    .roster .stamp { right: 4px; font-size: 20px; margin-top: -18px; }
+    .acts { white-space: normal; }
+    .acts .btn { display: block; width: 100%; }
+    .acts .btn + .btn { margin: 8px 0 0; }
+    .complaints li { padding-right: 0; }
+    .complaints .stamp { position: relative; right: auto; top: auto; margin: 8px 0 0; display: inline-block; }
+  }
+  @media (max-width: 520px) {
+    .day { min-height: 46px; padding: 3px 4px; border-left-width: 5px; }
+    .day .k { display: none; }
+    .day .d { font-size: 18px; }
+    .cal { padding: 14px 10px 16px; }
+    .cal-grid { gap: 3px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    .track { animation: none !important; }
+    body.party { animation: none !important; background-color: #c21d7a; }
+  }
+</style>
+</head>
+<body class="loading">
+<a class="skip" href="#main">К содержимому</a>
+
+<div id="shutter" class="closed" aria-hidden="true">
+  <div class="shutter-label"><b id="shLabel">Ещё не открылись</b><span id="shSub">Подождите, мы решаем, стоит ли</span></div>
+  <div class="shutter-handle"></div>
+</div>
+
+<header class="bar">
+  <button class="brand" id="brand" type="button">Не работаем</button>
+  <nav aria-label="Разделы">
+    <a href="#home" data-page="home">Главная</a>
+    <a href="#reasons" data-page="reasons">Причины</a>
+    <a href="#play" data-page="play">Развлечения</a>
+    <a href="#staff" data-page="staff">Штат</a>
+  </nav>
+  <button class="btn small party" id="party" type="button" aria-pressed="false">Корпоратив</button>
+</header>
+
+<main id="main">
+
+  <section class="page" id="home" aria-labelledby="h-home">
+    <div class="home-grid">
+      <div>
+        <h1 id="h-home">Мы не работаем. Вам тоже не советуем.</h1>
+        <p class="lede">Это сайт-вывеска. Здесь ничего не продают и не обещают. Расписание ниже, нажмите на день, чтобы узнать подробности.</p>
+        <div class="paper cal">
+          <div class="cal-head">
+            <h3 id="calTitle"></h3>
+            <button class="btn small alt" id="calPrev" type="button" aria-label="Предыдущий месяц">‹</button>
+            <button class="btn small alt" id="calToday" type="button">Сегодня</button>
+            <button class="btn small alt" id="calNext" type="button" aria-label="Следующий месяц">›</button>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-detail" id="calDetail" aria-live="polite"></div>
+          <ul class="legend" id="legend"></ul>
+        </div>
+      </div>
+      <div class="hang">
+        <div class="swing" id="swing">
+          <svg class="strings" viewBox="0 0 340 112" aria-hidden="true">
+            <line id="lineL" x1="170" y1="12" x2="48" y2="112"></line>
+            <line id="lineR" x1="170" y1="12" x2="292" y2="112"></line>
+            <circle class="nail" cx="170" cy="12" r="9"></circle>
+          </svg>
+          <button class="sign on-yellow" id="sign" type="button" aria-label="Перевернуть табличку">
+            <span class="plate" id="plate">
+              <i class="hole l"></i><i class="hole r"></i>
+              <span class="face front"><span class="big">ЗАКРЫТО</span><span class="note">вернёмся никогда</span></span>
+              <span class="face back"><span class="big">ОТКРЫТО</span><span class="note">(показалось)</span></span>
+            </span>
+          </button>
+        </div>
+        <p class="aside" id="signMsg" aria-live="polite">Табличку можно перевернуть. Только аккуратно.</p>
+        <button class="btn rehang" id="rehang" type="button" hidden>Повесить обратно</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="reasons" aria-labelledby="h-reasons">
+    <h2 class="title" id="h-reasons">Почему закрыто</h2>
+    <div class="stage">
+      <div>
+        <p class="lede" style="margin-top:0">Причина меняется каждый раз. Правдивой не бывает ни одна.</p>
+        <div class="actions">
+          <button class="btn" id="newReason" type="button">Новая причина</button>
+          <button class="btn alt" id="copyReason" type="button">Скопировать текст</button>
+        </div>
+      </div>
+      <div class="sheet paper pin" id="sheet">
+        <h3>Объявление</h3>
+        <p>Магазин закрыт. Причина: <span id="why"></span>.</p>
+        <p>Вернёмся <span id="when"></span>.</p>
+        <p class="sign-off">Администрация</p>
+      </div>
+    </div>
+    <div class="book paper">
+      <h3>Жалобная книга</h3>
+      <p>Каждая жалоба рассматривается немедленно и уходит лично директору.</p>
+      <form id="bookForm">
+        <textarea id="bookText" maxlength="200" placeholder="Например: я пришёл, а вы закрыты" aria-label="Текст жалобы"></textarea>
+        <button class="btn" type="submit">Оставить жалобу</button>
+      </form>
+      <ul class="complaints" id="complaints"></ul>
+    </div>
+  </section>
+
+  <section class="page" id="play" aria-labelledby="h-play">
+    <h2 class="title" id="h-play">Комната отдыха</h2>
+    <div class="rest">
+      <div class="lazy-wrap">
+        <button class="lazy" id="lazy" type="button">Лениться</button>
+        <p class="score"><span id="score">0</span> мин отдыха</p>
+        <p class="rate" id="rate"></p>
+        <div class="receipt paper">
+          <h3>Чек на удобства</h3>
+          <ul id="shop"></ul>
+        </div>
+      </div>
+      <div class="side">
+        <div>
+          <h3 class="play-h">Проверка бодрости</h3>
+          <button class="react" id="react" type="button">
+            Нажмите, чтобы начать<small>Когда экран станет зелёным, жмите как можно быстрее.</small>
+          </button>
+          <div class="daybest">
+            <p class="daybest-line" id="dayBest" aria-live="polite">Рекорд дня: загружаем…</p>
+            <label class="nick">Ваше имя для рекорда
+              <input id="nick" type="text" maxlength="24" placeholder="Аноним" autocomplete="nickname">
+            </label>
+          </div>
+        </div>
+        <div>
+          <h3 class="play-h">Кнопка «Работать»</h3>
+          <div class="arena" id="arena">
+            <button class="btn" id="dodge" type="button">Работать</button>
+          </div>
+          <p class="arena-note" id="dodgeNote" aria-live="polite">Попробуйте навести на неё курсор.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="staff" aria-labelledby="h-staff">
+    <h2 class="title" id="h-staff">Штатное расписание</h2>
+    <div class="paper">
+      <table class="roster">
+        <thead><tr><th scope="col">Сотрудник</th><th scope="col">Должность</th><th scope="col">Кадровые решения</th></tr></thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+      <form class="hire" id="hire">
+        <input id="hireName" type="text" maxlength="24" placeholder="Имя нового сотрудника" aria-label="Имя нового сотрудника" autocomplete="off">
+        <button class="btn" id="hireBtn" type="submit">Принять на работу</button>
+      </form>
+      <p class="hire-msg" id="hireMsg" aria-live="polite"></p>
+      <p class="roster-note" id="staffNote"></p>
+    </div>
+  </section>
+
+</main>
+
+<div class="ticker" aria-hidden="true">
+  <div class="track" id="track">
+    <span>Перерыв на обед с 9 до 18</span><span>Санитарный день</span><span>Переучёт</span><span>Директор на месте, но спит</span><span>Ушли на склад, вернёмся не скоро</span><span>Касса не работает</span><span>Звоните завтра, телефона нет</span><span>Заходите вчера</span>
+  </div>
+</div>
+
+<footer>
+  <span>Вы зашли сюда <b id="visits">1</b>-й раз. Для закрытого магазина это много.</span>
+  <span>До открытия: <b id="cd">00:00:00</b></span>
+</footer>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ===== Меняйте этот блок под себя ===== */
+
+  // Адрес базы Firebase Realtime Database. Пока пусто, штат хранится только в браузере посетителя.
+  // Пример: "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.app"
+  var DB_URL = "https://ne-rabotaem-default-rtdb.europe-west1.firebasedatabase.app";
+
+  // Директор. Его нельзя уволить или понизить: он задан здесь, а не в базе.
+  var DIRECTOR = { name: "Никитка", role: "Директор по ничегонеделанию" };
+
+  var REASONS = [
+    "сотрудники изучают, как работают люди, которые работают",
+    "кот наступил на кассу, и она ушла на больничный",
+    "идёт обновление реальности, осталось 97%",
+    "все хорошие идеи закончились, новую партию привезут во вторник",
+    "переучёт: мы считаем, сколько мы не работаем",
+    "совещание о том, нужны ли совещания",
+    "санитарный день, санитарами назначены все, но никто не пришёл",
+    "дедлайн отложен до выяснения обстоятельств",
+    "ждём вдохновения, оно написало, что задержится",
+    "переезд в другое измерение, коробки уже собраны",
+    "мы вышли за хлебом в 2019 году",
+    "обед, он начался в понедельник и всё ещё идёт",
+    "отключили интернет, а что делать без него, мы не помним",
+    "технический перерыв: у техники тоже есть чувства",
+    "директор спит, будить его запрещено уставом"
+  ];
+  var WHEN = [
+    "в понедельник, в какой именно, не уточняем",
+    "после обеда, но не сегодняшнего",
+    "как только, так сразу",
+    "через 15 минут, отсчёт запущен в 2019 году",
+    "когда будет настроение, оно пока на курсах",
+    "никогда, но в хорошем настроении",
+    "в следующую пятницу, если пятница согласится",
+    "после дождичка в четверг"
+  ];
+  var ROLES = [
+    "Заместитель по перекурам", "Старший специалист по лежанию", "Ведущий отдыхающий",
+    "Начальник отдела «Потом»", "Хранитель дивана", "Мастер отмазок", "Главный по чаю",
+    "Инспектор по зеванию", "Менеджер по откладыванию", "Стажёр по безделью",
+    "Эксперт по прокрастинации", "Смотритель холодильника", "Генеральный по мемам"
+  ];
+  /* ====================================== */
+
+  var PAGES = { home: "Главная", reasons: "Причины", play: "Развлечения", staff: "Штат" };
+  var SUBS = ["Секунду, поднимаем рольставню", "Ключи у Людмилы, а Людмила на обеде", "Сейчас откроем, нет, показалось", "Не отходите, мы быстро (нет)", "Рольставню заело, пинаем"];
+  var OPENING = ["Открываем, не толкайтесь", "Поднимаем, держитесь", "Тянем вдвоём", "Скрипит, но едет"];
+
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var wait = function (ms, fn) { return setTimeout(fn, reduce ? 0 : ms); };
+  var pick = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  /* ===== База ===== */
+  DB_URL = String(DB_URL || "").replace(/\/+$/, "");
+  var shared = /^https:\/\//.test(DB_URL);
+  function req(method, path, body) {
+    var opt = { method: method };
+    if (body !== undefined) { opt.headers = { "Content-Type": "application/json" }; opt.body = JSON.stringify(body); }
+    return fetch(DB_URL + path + ".json", opt).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function replay(node, cls, remove) {
+    (remove || []).forEach(function (c) { node.classList.remove(c); });
+    node.classList.remove(cls);
+    void node.offsetWidth;
+    node.classList.add(cls);
+  }
+  function flash(btn, text, ms) {
+    var old = btn.getAttribute("data-label") || btn.textContent;
+    btn.setAttribute("data-label", old);
+    btn.textContent = text;
+    setTimeout(function () { btn.textContent = old; }, ms || 1400);
+  }
+  function stampIt(st, text, color) {
+    st.textContent = text;
+    st.className = "stamp" + (color ? " " + color : "");
+    void st.offsetWidth;
+    st.classList.add("hit");
+  }
+
+  /* ===== Тост ===== */
+  var toastEl = $("#toast"), toastT = 0;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("on");
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { toastEl.classList.remove("on"); }, 3400);
+  }
+
+  /* ===== Конфетти ===== */
+  var cv = $("#fx"), cx = cv.getContext("2d"), parts = [], raf = 0;
+  var COLORS = ["#ffd21f", "#e0301e", "#fbfaf5", "#12b76a", "#0e1330"];
+  function sizeCanvas() { cv.width = innerWidth; cv.height = innerHeight; }
+  sizeCanvas();
+  addEventListener("resize", sizeCanvas);
+  function burst(x, y, n, colors) {
+    if (reduce) return;
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2, v = 4 + Math.random() * 9;
+      parts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 6, r: Math.random() * 6.28,
+        vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 7, h: 4 + Math.random() * 6, c: pick(colors || COLORS), life: 80 + Math.random() * 50 });
+    }
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+  function loop() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+      if (p.life <= 0 || p.y > cv.height + 20) { parts.splice(i, 1); continue; }
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r);
+      cx.fillStyle = p.c; cx.globalAlpha = Math.min(1, p.life / 30);
+      cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); cx.restore();
+    }
+    raf = parts.length ? requestAnimationFrame(loop) : 0;
+  }
+
+  /* ===== Рольставни и страницы ===== */
+  var shutter = $("#shutter"), current = "home", busy = false;
+  function closeShutter(label, sub, done) {
+    $("#shLabel").textContent = label;
+    $("#shSub").textContent = sub;
+    shutter.className = "closing";
+    wait(950, function () { shutter.className = "closed"; if (done) done(); });
+  }
+  function openShutter(done) {
+    $("#shSub").textContent = pick(OPENING);
+    shutter.className = "opening";
+    wait(1250, function () { shutter.className = ""; if (done) done(); });
+  }
+
+  var enter = {
+    home: function () { if (!fallen) replay($("#swing"), "enter", ["kick"]); },
+    reasons: function () { replay($("#sheet"), "pin", ["tear"]); },
+    staff: function () { refreshStaff(); },
+    play: function () { loadDayRec(); }
+  };
+  function show(page, skipEnter) {
+    $$(".page").forEach(function (p) { p.classList.toggle("on", p.id === page); });
+    $$(".bar nav a").forEach(function (a) {
+      var on = a.getAttribute("data-page") === page;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    current = page;
+    window.scrollTo(0, 0);
+    document.title = page === "home" ? "Не работаем" : PAGES[page] + ": не работаем";
+    if (!skipEnter && enter[page]) enter[page]();
+  }
+  function go(page, noPush) {
+    if (!PAGES[page] || busy || page === current) return;
+    busy = true;
+    closeShutter(PAGES[page], pick(SUBS), function () {
+      show(page, true);
+      if (!noPush) { try { history.pushState({ p: page }, "", "#" + page); } catch (e) {} }
+      wait(250, function () {
+        openShutter(function () { busy = false; });
+        wait(500, function () { if (enter[page]) enter[page](); });
+      });
+    });
+  }
+  $$(".bar nav a").forEach(function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); go(a.getAttribute("data-page")); });
+  });
+  var brandClicks = 0, brandT = 0;
+  $("#brand").addEventListener("click", function () {
+    brandClicks++;
+    clearTimeout(brandT);
+    brandT = setTimeout(function () { brandClicks = 0; }, 2500);
+    if (brandClicks === 7) { brandClicks = 0; toast("Вы нашли секретный отдел. Здесь тоже никто не работает."); }
+    go("home");
+  });
+  addEventListener("popstate", function () {
+    var h = location.hash.slice(1);
+    go(PAGES[h] ? h : "home", true);
+  });
+
+  /* ===== Календарь ===== */
+  var MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+  var MONTHS_G = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  var DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  var DOW_FULL = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
+  var TYPES = {
+    closed: { short: "закрыто", title: "Закрыто", c: "#e0301e", notes: [
+      "Закрыто по техническим, личным и философским причинам.",
+      "Причина закрытия уточняется. Уточнять некому.",
+      "Сегодня закрыто. Завтра посмотрим, но, скорее всего, тоже.",
+      "Закрыто, потому что можем.",
+      "Дверь заперта, ключ потерян, никто не ищет."] },
+    sanitary: { short: "сан. день", title: "Санитарный день", c: "#7a2bd6", notes: [
+      "Моем полы. Полов у нас нет, поэтому моем всё остальное.",
+      "Дезинфекция от трудового энтузиазма.",
+      "Протираем пыль. Пыль протестует."] },
+    inventory: { short: "переучёт", title: "Переучёт", c: "#d46a0a", notes: [
+      "Пересчитываем табуретки. Сбились на третьей.",
+      "Считаем, сколько дней мы не работали. Цифра не помещается.",
+      "Ищем, куда делся весь энтузиазм. Пока не нашли."] },
+    lunch: { short: "обед", title: "Обед весь день", c: "#c21d7a", notes: [
+      "Обед с 9:00 до 18:00. Без перерыва на работу.",
+      "Ушли за пельменями. Вернёмся, когда доедим.",
+      "Второе блюдо затянулось."] },
+    tech: { short: "тех. перерыв", title: "Технический перерыв", c: "#4a5167", notes: [
+      "Обновляем Windows. Осталось 2%. Уже третий час.",
+      "Перезагружаем сотрудников. Пока не загрузились.",
+      "Чиним то, что не ломалось."] },
+    weekend: { short: "выходной", title: "Выходной", c: "#1d2fd0", notes: [
+      "Выходной. Отдыхаем от будней, в которые тоже отдыхали.",
+      "Выходные созданы для этого. Будни, впрочем, тоже.",
+      "Законный выходной. Незаконные были в будни."] },
+    holiday: { short: "праздник", title: "Праздник", c: "#e0b400", notes: [] },
+    open: { short: "открыто*", title: "Открыто*", c: "#12b76a", notes: [
+      "* С 03:00 до 03:01 по местному времени. Вы опоздали."] }
+  };
+  var HOLIDAYS = {
+    "01-01": ["Новый год", "Спим до 2 января. Или до марта."],
+    "01-07": ["Рождество", "Празднуем лёжа."],
+    "02-14": ["День святого Валентина", "Любим отдых. Взаимно."],
+    "02-23": ["23 февраля", "Защищаем право на отдых."],
+    "03-08": ["8 марта", "Дарим цветы и не работаем."],
+    "04-01": ["День смеха", "Сегодня открыто. Шутка."],
+    "05-01": ["Праздник весны и труда", "Весну отмечаем, труд пропускаем."],
+    "05-09": ["День Победы", "Выходной. Помним."],
+    "06-12": ["День России", "Государственный выходной. Наш ничем не отличается."],
+    "09-01": ["1 сентября", "У студентов начинается учёба. У нас ничего не начинается."],
+    "11-04": ["День народного единства", "Единогласно решили не работать."],
+    "11-08": ["День рождения сайта", "Сайт открылся 8 ноября 2026 года и с тех пор не работает."],
+    "12-31": ["31 декабря", "Режем салаты. Работу не режем, её и так нет."]
+  };
+  var WEEKDAY_POOL = ["closed", "closed", "closed", "closed", "sanitary", "inventory", "lunch", "tech"];
+  var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+  function hash(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  var openCache = {};
+  function openDay(y, m) {
+    var k = y + "-" + m;
+    if (k in openCache) return openCache[k];
+    var days = new Date(y, m + 1, 0).getDate(), cands = [];
+    for (var d = 1; d <= days; d++) {
+      var dow = (new Date(y, m, d).getDay() + 6) % 7;
+      if (dow < 5 && !HOLIDAYS[pad(m + 1) + "-" + pad(d)]) cands.push(d);
+    }
+    return (openCache[k] = cands[hash("open" + k) % cands.length]);
+  }
+  function info(y, m, d) {
+    var k = y + "-" + pad(m + 1) + "-" + pad(d), md = pad(m + 1) + "-" + pad(d);
+    var dow = (new Date(y, m, d).getDay() + 6) % 7;
+    var doy = Math.round((Date.UTC(y, m, d) - Date.UTC(y, 0, 0)) / 864e5);
+    if (HOLIDAYS[md]) return { type: "holiday", title: HOLIDAYS[md][0], note: HOLIDAYS[md][1], dow: dow };
+    if (doy === 256) return { type: "holiday", title: "День программиста", note: "Код сам себя не напишет. Мы тоже.", dow: dow };
+    var type = dow >= 5 ? "weekend" : d === openDay(y, m) ? "open" : WEEKDAY_POOL[hash(k) % WEEKDAY_POOL.length];
+    var t = TYPES[type];
+    return { type: type, title: t.title, note: t.notes[hash(k + "note") % t.notes.length], dow: dow };
+  }
+  var now = new Date(), calY = now.getFullYear(), calM = now.getMonth(), calSel = now.getDate();
+  var calGrid = $("#calGrid"), calDetail = $("#calDetail");
+  function renderCal(dir) {
+    $("#calTitle").textContent = MONTHS[calM] + " " + calY;
+    calGrid.textContent = "";
+    DOW.forEach(function (n, i) { calGrid.appendChild(el("div", "dow" + (i >= 5 ? " we" : ""), n)); });
+    var first = (new Date(calY, calM, 1).getDay() + 6) % 7, days = new Date(calY, calM + 1, 0).getDate();
+    for (var i = 0; i < first; i++) calGrid.appendChild(el("div"));
+    var t = new Date();
+    for (var d = 1; d <= days; d++) {
+      var inf = info(calY, calM, d), T = TYPES[inf.type];
+      var b = el("button", "day t-" + inf.type);
+      b.type = "button";
+      b.style.setProperty("--c", T.c);
+      b.setAttribute("data-d", d);
+      b.setAttribute("aria-label", d + " " + MONTHS_G[calM] + ": " + inf.title);
+      b.setAttribute("aria-pressed", d === calSel ? "true" : "false");
+      if (d === t.getDate() && calM === t.getMonth() && calY === t.getFullYear()) b.classList.add("today");
+      b.appendChild(el("span", "d", d));
+      b.appendChild(el("span", "k", T.short));
+      calGrid.appendChild(b);
+    }
+    if (dir) replay(calGrid, dir > 0 ? "slide-l" : "slide-r", ["slide-l", "slide-r"]);
+    renderDetail(false);
+  }
+  function renderDetail(anim) {
+    var inf = info(calY, calM, calSel);
+    calDetail.textContent = "";
+    calDetail.appendChild(el("b", null, calSel + " " + MONTHS_G[calM] + ", " + DOW_FULL[inf.dow] + ": " + inf.title));
+    calDetail.appendChild(el("p", null, inf.note));
+    if (anim) replay(calDetail, "pop");
+  }
+  calGrid.addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest(".day") : null;
+    if (!b) return;
+    calSel = +b.getAttribute("data-d");
+    $$(".day", calGrid).forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    renderDetail(true);
+  });
+  function shiftMonth(n) {
+    calM += n;
+    if (calM < 0) { calM = 11; calY--; }
+    if (calM > 11) { calM = 0; calY++; }
+    calSel = 1;
+    var t = new Date();
+    if (calM === t.getMonth() && calY === t.getFullYear()) calSel = t.getDate();
+    renderCal(n);
+  }
+  $("#calPrev").addEventListener("click", function () { shiftMonth(-1); });
+  $("#calNext").addEventListener("click", function () { shiftMonth(1); });
+  $("#calToday").addEventListener("click", function () {
+    var t = new Date(), dir = (t.getFullYear() - calY) * 12 + (t.getMonth() - calM);
+    calY = t.getFullYear(); calM = t.getMonth(); calSel = t.getDate();
+    renderCal(dir === 0 ? 0 : dir);
+    renderDetail(true);
+  });
+  var legend = $("#legend");
+  Object.keys(TYPES).forEach(function (k) {
+    var li = el("li"), sw = el("i");
+    sw.style.setProperty("--c", TYPES[k].c);
+    li.appendChild(sw); li.appendChild(document.createTextNode(TYPES[k].short));
+    legend.appendChild(li);
+  });
+  renderCal(0);
+
+  /* ===== Табличка ===== */
+  var plate = $("#plate"), swing = $("#swing"), sign = $("#sign"), signMsg = $("#signMsg"), rehang = $("#rehang");
+  var lineL = $("#lineL"), lineR = $("#lineR");
+  var signBusy = false, flips = 0, fallen = false;
+  var SIGNMSG = [
+    "Показалось. Мы не работаем.",
+    "Это не вы, это табличка глючит.",
+    "Нет. Сегодня точно нет.",
+    "Ровно секунду мы были открыты. Больше так не делаем.",
+    "Табличка не согласна и вернулась на место."
+  ];
+  function kick() { replay(swing, "kick", ["enter"]); }
+  function setLines(l, r) {
+    lineL.setAttribute("x2", l[0]); lineL.setAttribute("y2", l[1]);
+    lineR.setAttribute("x2", r[0]); lineR.setAttribute("y2", r[1]);
+  }
+  sign.addEventListener("click", function () {
+    if (fallen || signBusy) return;
+    flips++;
+    if (flips > 5) { fall(); return; }
+    signBusy = true;
+    plate.classList.add("flip");
+    kick();
+    signMsg.textContent = flips === 4 ? "Осторожно, табличка держится на одном гвозде."
+      : flips === 5 ? "Ещё раз, и она упадёт. Мы предупредили." : pick(SIGNMSG);
+    wait(1900, function () {
+      plate.classList.remove("flip");
+      kick();
+      wait(900, function () { signBusy = false; });
+    });
+  });
+  function fall() {
+    fallen = true; signBusy = true;
+    swing.classList.remove("enter", "kick");
+    setLines([156, 98], [190, 92]);
+    signMsg.textContent = "Хрясь.";
+    sign.classList.add("fall");
+    wait(1100, function () {
+      sign.classList.remove("fall");
+      sign.classList.add("gone");
+      signMsg.textContent = "Табличка упала. Теперь мы закрыты официально и навсегда.";
+      rehang.hidden = false;
+      rehang.focus({ preventScroll: true });
+      burst(innerWidth / 2, innerHeight - 10, 50, ["#ffd21f", "#0e1330", "#a3abc0"]);
+      toast("Вы сломали табличку. Счёт пришлём никогда.");
+    });
+  }
+  rehang.addEventListener("click", function () {
+    setLines([48, 112], [292, 112]);
+    sign.classList.remove("gone");
+    plate.classList.remove("flip");
+    flips = 0; fallen = false; signBusy = false;
+    rehang.hidden = true;
+    replay(swing, "enter", ["kick"]);
+    signMsg.textContent = "Повесили обратно. Больше так не делайте.";
+  });
+
+  /* ===== Причины ===== */
+  var sheet = $("#sheet"), sheetBusy = false;
+  function setReason() { $("#why").textContent = pick(REASONS); $("#when").textContent = pick(WHEN); }
+  setReason();
+  $("#newReason").addEventListener("click", function () {
+    if (sheetBusy) return;
+    sheetBusy = true;
+    if (reduce) { setReason(); sheetBusy = false; return; }
+    sheet.classList.remove("pin");
+    sheet.classList.add("tear");
+    sheet.addEventListener("animationend", function done() {
+      sheet.removeEventListener("animationend", done);
+      setReason();
+      sheet.classList.remove("tear");
+      void sheet.offsetWidth;
+      sheet.classList.add("pin");
+      sheetBusy = false;
+    });
+  });
+  $("#copyReason").addEventListener("click", function () {
+    var btn = this;
+    var t = "Магазин закрыт. Причина: " + $("#why").textContent + ". Вернёмся " + $("#when").textContent + ".";
+    try {
+      navigator.clipboard.writeText(t).then(function () { flash(btn, "Скопировано"); }, function () { flash(btn, "Не вышло, выделите вручную", 2200); });
+    } catch (e) { flash(btn, "Не вышло, выделите вручную", 2200); }
+  });
+
+  /* ===== Жалобная книга ===== */
+  var VERDICTS = [
+    "Отклонено: жалоба подана в нерабочее время.",
+    "Передано директору. Директор спит.",
+    "Принято к сведению. Сведения потеряны.",
+    "Отклонено: на нас нельзя жаловаться, мы же не работаем.",
+    "Рассмотрено. Решили ничего не делать.",
+    "Подшито в папку «Потом»."
+  ];
+  var complaints = store.get("complaints", []);
+  if (!Array.isArray(complaints)) complaints = [];
+  var compList = $("#complaints");
+  function renderComplaints(fresh) {
+    compList.textContent = "";
+    complaints.forEach(function (c, i) {
+      var li = el("li"), st = el("span", "stamp");
+      li.appendChild(el("q", null, c.text));
+      li.appendChild(el("small", null, c.v));
+      li.appendChild(st);
+      compList.appendChild(li);
+      if (fresh && i === 0) stampIt(st, "Рассмотрено");
+      else { st.textContent = "Рассмотрено"; st.classList.add("shown"); }
+    });
+  }
+  renderComplaints(false);
+  $("#bookForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var ta = $("#bookText"), text = ta.value.replace(/\s+/g, " ").trim().slice(0, 200);
+    var btn = this.querySelector("button");
+    if (!text) { ta.focus(); return; }
+    function accept() {
+      complaints.unshift({ text: text, v: pick(VERDICTS) });
+      complaints = complaints.slice(0, 5);
+      store.set("complaints", complaints);
+      ta.value = "";
+      renderComplaints(true);
+    }
+    if (!shared) { accept(); return; }
+    btn.disabled = true;
+    req("POST", "/complaints", { text: text, t: { ".sv": "timestamp" } }).then(accept, function () {
+      toast("Жалоба не ушла: нет связи. Текст остался в поле, попробуйте ещё раз.");
+    }).then(function () { btn.disabled = false; });
+  });
+
+  /* ===== Лень-кликер ===== */
+  var ITEMS = [
+    { name: "Подушка под спину", desc: "+1 минута за нажатие", base: 15, click: 1, sec: 0 },
+    { name: "Кот на коленях", desc: "+1 минута в секунду", base: 60, click: 0, sec: 1 },
+    { name: "Отпуск за свой счёт", desc: "+8 минут в секунду", base: 400, click: 0, sec: 8 }
+  ];
+  var S = store.get("lazy", null);
+  if (!S || typeof S.n !== "number" || !S.items || S.items.length !== ITEMS.length) S = { n: 0, items: [0, 0, 0] };
+  var fmt = function (n) { return Math.floor(n).toLocaleString("ru-RU"); };
+  var cost = function (i) { return Math.round(ITEMS[i].base * Math.pow(1.35, S.items[i])); };
+  function perClick() { var c = 1; ITEMS.forEach(function (it, i) { c += it.click * S.items[i]; }); return c; }
+  function perSec() { var c = 0; ITEMS.forEach(function (it, i) { c += it.sec * S.items[i]; }); return c; }
+  var shop = $("#shop"), shopBtns = [];
+  ITEMS.forEach(function (it, i) {
+    var li = el("li"), small = el("small"), btn = el("button", "btn small");
+    btn.type = "button";
+    btn.addEventListener("click", function () {
+      var c = cost(i);
+      if (S.n < c) return;
+      S.n -= c; S.items[i]++; store.set("lazy", S); renderLazy();
+    });
+    li.appendChild(el("b", null, it.name)); li.appendChild(small); li.appendChild(btn); shop.appendChild(li);
+    shopBtns.push({ small: small, btn: btn });
+  });
+  function renderLazy() {
+    $("#score").textContent = fmt(S.n);
+    $("#rate").textContent = "За нажатие: " + perClick() + ". В секунду: " + perSec() + ".";
+    ITEMS.forEach(function (it, i) {
+      shopBtns[i].small.textContent = it.desc + ". Куплено: " + S.items[i] + ".";
+      shopBtns[i].btn.textContent = "Взять за " + fmt(cost(i));
+      shopBtns[i].btn.disabled = S.n < cost(i);
+    });
+  }
+  renderLazy();
+  $("#lazy").addEventListener("click", function () {
+    var inc = perClick(); S.n += inc; renderLazy();
+    var r = this.getBoundingClientRect();
+    var f = el("span", "float", "+" + inc);
+    f.style.left = (r.left + r.width / 2 + (Math.random() - .5) * 120) + "px";
+    f.style.top = (r.top + 20) + "px";
+    f.addEventListener("animationend", function () { f.remove(); });
+    document.body.appendChild(f);
+  });
+  setInterval(function () { var s = perSec(); if (s) S.n += s; renderLazy(); store.set("lazy", S); }, 1000);
+
+  /* ===== Проверка бодрости ===== */
+  var react = $("#react"), rState = "idle", rT0 = 0, rTimer = 0, best = store.get("best", 0);
+  function rSet(cls, main, sub) {
+    react.className = "react " + cls;
+    react.textContent = main;
+    react.appendChild(el("small", null, sub));
+  }
+  react.addEventListener("click", function () {
+    if (rState === "idle" || rState === "done") {
+      rState = "wait";
+      rSet("wait", "Ждите зелёный", "Не нажимайте раньше времени.");
+      rTimer = setTimeout(function () {
+        rState = "go"; rT0 = performance.now(); rSet("go", "Жмите!", "");
+      }, 1000 + Math.random() * 2500);
+    } else if (rState === "wait") {
+      clearTimeout(rTimer); rState = "done";
+      rSet("early", "Рано", "Нажмите, чтобы попробовать ещё раз.");
+    } else if (rState === "go") {
+      var ms = Math.round(performance.now() - rT0); rState = "done";
+      var verdict = ms < 200 ? "Подозрительно бодро. Вы точно не работаете?" : ms < 300 ? "Хорошо для отдыхающего." : ms < 450 ? "Идеальная форма расслабленности." : "Вы спали? Уважаем.";
+      var rec = "";
+      if (!best || ms < best) { best = ms; store.set("best", best); rec = " Ваш новый рекорд."; burst(innerWidth / 2, innerHeight / 2, 70); }
+      rSet("idle", ms + " мс", verdict + rec + " Ваш лучший результат: " + best + " мс. Нажмите, чтобы повторить.");
+      tryDayRecord(ms);
+    }
+  });
+
+  /* ===== Рекорд дня (общий) ===== */
+  var dayBestEl = $("#dayBest"), nickEl = $("#nick"), dayRec = null;
+  nickEl.value = store.get("nick", "");
+  nickEl.addEventListener("change", function () { store.set("nick", nickEl.value.replace(/\s+/g, " ").trim().slice(0, 24)); });
+  function todayKey() {
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Novosibirsk", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+    catch (e) { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  }
+  function showDayRec() {
+    if (!shared) { dayBestEl.textContent = "Рекорд дня появится, когда подключат базу."; return; }
+    dayBestEl.textContent = dayRec ? "Рекорд дня: " + dayRec.ms + " мс, " + dayRec.name + "." : "Рекорда дня ещё нет. Станьте первым.";
+  }
+  function loadDayRec() {
+    if (!shared) { showDayRec(); return Promise.resolve(); }
+    return req("GET", "/records/" + todayKey()).then(function (r) {
+      dayRec = r && typeof r.ms === "number" && typeof r.name === "string" ? r : null;
+      showDayRec();
+    }, function () { dayBestEl.textContent = "Рекорд дня не загрузился. Проверьте интернет."; });
+  }
+  function tryDayRecord(ms) {
+    if (!shared || ms < 80) return;
+    loadDayRec().then(function () {
+      if (dayRec && ms >= dayRec.ms) return;
+      var name = nickEl.value.replace(/\s+/g, " ").trim().slice(0, 24) || "Аноним";
+      store.set("nick", name === "Аноним" ? "" : name);
+      req("PUT", "/records/" + todayKey(), { ms: ms, name: name }).then(function () {
+        dayRec = { ms: ms, name: name };
+        dayBestEl.textContent = "Новый рекорд дня: " + ms + " мс, " + name + ".";
+        replay(dayBestEl, "beat");
+        burst(innerWidth / 2, innerHeight / 3, 120);
+        toast("Рекорд дня ваш. Теперь все знают, что вы самый бодрый бездельник.");
+      }, function () { loadDayRec(); });
+    });
+  }
+  loadDayRec();
+  setInterval(function () { if (current === "play" && !document.hidden) loadDayRec(); }, 20000);
+
+  /* ===== Кнопка «Работать»: навестись невозможно ===== */
+  var arena = $("#arena"), dodgeBtn = $("#dodge"), dodges = 0, dodgeNote = $("#dodgeNote"), lastFlee = 0;
+  var DODGE_TIERS = [
+    [100, "Вы потратили на работу больше сил, чем мы за год."],
+    [50, "Кнопка подала заявление на отпуск."],
+    [25, "Кнопка вызвала профсоюз."],
+    [10, "Кнопка устала, но не сдаётся."],
+    [0, "Даже не пытайтесь."]
+  ];
+  function dodgeText(extra) {
+    var t = "";
+    for (var i = 0; i < DODGE_TIERS.length; i++) if (dodges >= DODGE_TIERS[i][0]) { t = DODGE_TIERS[i][1]; break; }
+    dodgeNote.textContent = (extra ? extra + " " : "") + "Увернулась: " + dodges + " раз. " + t;
+  }
+  function flee(px, py) {
+    var ar = arena.getBoundingClientRect(), bw = dodgeBtn.offsetWidth, bh = dodgeBtn.offsetHeight;
+    var maxX = Math.max(4, ar.width - bw - 12), maxY = Math.max(4, ar.height - bh - 12), bestX = 4, bestY = 4, bestD = -1;
+    for (var i = 0; i < 18; i++) {
+      var x = 4 + Math.random() * (maxX - 4), y = 4 + Math.random() * (maxY - 4);
+      var dx = ar.left + x + bw / 2 - px, dy = ar.top + y + bh / 2 - py, dd = dx * dx + dy * dy;
+      if (dd > bestD) { bestD = dd; bestX = x; bestY = y; }
+    }
+    dodgeBtn.style.left = Math.round(bestX) + "px";
+    dodgeBtn.style.top = Math.round(bestY) + "px";
+    dodges++;
+    dodgeText();
+  }
+  function near(px, py) {
+    var r = dodgeBtn.getBoundingClientRect();
+    var dx = Math.max(r.left - px, 0, px - r.right), dy = Math.max(r.top - py, 0, py - r.bottom);
+    if (Math.sqrt(dx * dx + dy * dy) < 70 && performance.now() - lastFlee > 60) {
+      lastFlee = performance.now();
+      flee(px, py);
+    }
+  }
+  arena.addEventListener("pointermove", function (e) { near(e.clientX, e.clientY); });
+  arena.addEventListener("pointerdown", function (e) { near(e.clientX, e.clientY); });
+  arena.addEventListener("pointerenter", function (e) { near(e.clientX, e.clientY); });
+  dodgeBtn.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      var r = dodgeBtn.getBoundingClientRect();
+      flee(r.left + r.width / 2, r.top + r.height / 2);
+      dodgeText("Клавиатура тоже не поможет.");
+    }
+  });
+  dodgeBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    var r = dodgeBtn.getBoundingClientRect();
+    flee(r.left + r.width / 2, r.top + r.height / 2);
+    dodgeText("Почти. Но нет.");
+  });
+
+  /* ===== Штат ===== */
+  var staff = {}, pending = 0, MAX_STAFF = 60;
+  var local = {
+    get: function () { var o = store.get("staff2", {}); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; },
+    set: function (o) { store.set("staff2", o); }
+  };
+  var api = {
+    list: function () {
+      return shared ? req("GET", "/staff").then(function (o) { return o && typeof o === "object" ? o : {}; })
+        : Promise.resolve(local.get());
+    },
+    add: function (p) {
+      if (shared) return req("POST", "/staff", { name: p.name, role: p.role, t: { ".sv": "timestamp" } }).then(function (r) { return r.name; });
+      var o = local.get(), id = "l" + Date.now() + Math.floor(Math.random() * 1000);
+      o[id] = { name: p.name, role: p.role, t: Date.now() }; local.set(o);
+      return Promise.resolve(id);
+    },
+    remove: function (id) {
+      if (shared) return req("DELETE", "/staff/" + encodeURIComponent(id));
+      var o = local.get(); delete o[id]; local.set(o); return Promise.resolve();
+    },
+    update: function (id, patch) {
+      if (shared) return req("PATCH", "/staff/" + encodeURIComponent(id), patch);
+      var o = local.get(); if (o[id]) { o[id].role = patch.role; local.set(o); } return Promise.resolve();
+    }
+  };
+  var rosterBody = $("#rosterBody"), staffNote = $("#staffNote"), hireMsg = $("#hireMsg");
+  function setNote(state) {
+    staffNote.textContent = state === "error"
+      ? "Не удалось загрузить общий список. Проверьте интернет и обновите страницу."
+      : shared ? "Список общий: все посетители видят одних и тех же сотрудников. Обновляется каждые 15 секунд."
+      : "Общий список пока не подключён, поэтому изменения видны только в этом браузере.";
+  }
+  function validEntry(p) { return p && typeof p.name === "string" && typeof p.role === "string"; }
+  function count() { return Object.keys(staff).filter(function (k) { return validEntry(staff[k]); }).length; }
+  function renderStaff() {
+    rosterBody.textContent = "";
+    rosterBody.appendChild(row(null, DIRECTOR, true));
+    var ids = Object.keys(staff).filter(function (k) { return validEntry(staff[k]); });
+    ids.sort(function (a, b) { return (staff[a].t || 0) - (staff[b].t || 0); });
+    ids.forEach(function (id) { rosterBody.appendChild(row(id, staff[id], false)); });
+    if (!ids.length) {
+      var tr = el("tr", "empty"), td = el("td", null, "Больше в штате никого. Наймите кого-нибудь, директору скучно.");
+      td.colSpan = 3; tr.appendChild(td); rosterBody.appendChild(tr);
+    }
+  }
+  function row(id, p, boss) {
+    var tr = el("tr", boss ? "boss" : null);
+    var who = el("td", "who"), st = el("span", "stamp");
+    who.appendChild(el("span", "nm", p.name));
+    if (boss) { who.appendChild(el("span", "tag", "незаменим")); st.textContent = "Навсегда"; st.classList.add("shown"); }
+    who.appendChild(st);
+    var role = el("td", null, p.role);
+    var acts = el("td", "acts");
+    var up = el("button", "btn small alt", "Повысить"), out = el("button", "btn small danger", "Уволить");
+    up.type = out.type = "button";
+    acts.appendChild(up); acts.appendChild(out);
+    tr.appendChild(who); tr.appendChild(role); tr.appendChild(acts);
+
+    up.addEventListener("click", function () {
+      if (boss) { toast(pick(["Выше уже некуда.", "Директора повышают только до директора.", "Повышение отклонено: и так начальник."])); return; }
+      var r; do { r = pick(ROLES); } while (r === p.role && ROLES.length > 1);
+      p.role = r; role.textContent = r;
+      stampIt(st, "Повышен", "green");
+      pending++;
+      api.update(id, { role: r }).catch(function () { toast("Не удалось сохранить повышение. Проверьте интернет."); })
+        .then(function () { pending--; });
+    });
+    out.addEventListener("click", function () {
+      if (boss) {
+        replay(tr, "shake");
+        toast(pick([
+          "Директора уволить нельзя. Попытка занесена в личное дело.",
+          "Отказано. Директор назначен навсегда.",
+          "Директор неприкосновенен. Вы, кстати, уволены. Шутка."]));
+        return;
+      }
+      up.disabled = out.disabled = true;
+      stampIt(st, "Уволен");
+      tr.classList.add("leaving");
+      pending++;
+      wait(1250, function () {
+        api.remove(id).then(function () {
+          delete staff[id];
+          renderStaff();
+        }, function () {
+          tr.classList.remove("leaving");
+          st.className = "stamp";
+          up.disabled = out.disabled = false;
+          toast("Уволить не получилось: нет связи с базой.");
+        }).then(function () { pending--; });
+      });
+    });
+    return tr;
+  }
+  function refreshStaff() {
+    if (pending) return;
+    api.list().then(function (o) {
+      if (pending) return;
+      staff = o; renderStaff(); setNote("ok");
+    }, function () { setNote("error"); });
+  }
+  $("#hire").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("#hireName"), name = input.value.replace(/\s+/g, " ").trim().slice(0, 24);
+    if (!name) { hireMsg.textContent = "Впишите имя."; input.focus(); return; }
+    if (name.toLowerCase() === DIRECTOR.name.toLowerCase()) { hireMsg.textContent = "Директор у нас один, и место занято."; return; }
+    if (count() >= MAX_STAFF) { hireMsg.textContent = "Штат переполнен. Сначала уволите кого-нибудь."; return; }
+    var p = { name: name, role: pick(ROLES) }, btn = $("#hireBtn");
+    btn.disabled = true; pending++;
+    api.add(p).then(function (id) {
+      p.t = Date.now(); staff[id] = p;
+      renderStaff();
+      var rows = rosterBody.querySelectorAll("tr");
+      var last = rows[rows.length - 1];
+      if (last) stampIt(last.querySelector(".stamp"), "Принят", "green");
+      hireMsg.textContent = name + " принят на должность «" + p.role + "».";
+      input.value = "";
+    }, function () {
+      hireMsg.textContent = "Не получилось связаться с базой. Попробуйте ещё раз.";
+    }).then(function () { btn.disabled = false; pending--; });
+  });
+  setNote("ok");
+  refreshStaff();
+  setInterval(function () { if (shared && current === "staff" && !document.hidden) refreshStaff(); }, 15000);
+
+  /* ===== Корпоратив ===== */
+  var partyTimer = 0, partyBtn = $("#party");
+  partyBtn.addEventListener("click", function () {
+    var on = document.body.classList.toggle("party");
+    partyBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    partyBtn.textContent = on ? "Корпоратив идёт" : "Корпоратив";
+    clearInterval(partyTimer);
+    if (on) {
+      burst(innerWidth / 2, innerHeight * .4, 120);
+      partyTimer = setInterval(function () { burst(Math.random() * innerWidth, innerHeight * .25, 40); }, 900);
+    }
+  });
+
+  /* ===== Пасхалка: запретное слово ===== */
+  var buf = "";
+  addEventListener("keydown", function (e) {
+    var t = e.target;
+    if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+    if (!e.key || e.key.length !== 1) return;
+    buf = (buf + e.key.toLowerCase()).slice(-6);
+    if ((buf === "работа" || buf === "hf,jnf") && !busy) {
+      buf = ""; busy = true;
+      closeShutter("Это слово здесь не говорят", "Держите себя в руках", function () {
+        wait(900, function () { openShutter(function () { busy = false; }); });
+      });
+    }
+  });
+
+  /* ===== Отсчёт до открытия ===== */
+  var cdLeft = 30 + Math.floor(Math.random() * 60), postpones = 0, cdEl = $("#cd");
+  function fmtT(s) { return pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60); }
+  cdEl.textContent = fmtT(cdLeft);
+  setInterval(function () {
+    cdLeft--;
+    if (cdLeft <= 0) {
+      postpones++;
+      cdLeft = Math.round((60 + Math.random() * 120) * Math.pow(1.8, postpones));
+      toast(pick(["Открытие перенесено. Не успели проснуться.", "Открытие перенесено по техническим причинам.", "Открытие отменено и тут же назначено снова."]));
+    }
+    cdEl.textContent = fmtT(cdLeft);
+  }, 1000);
+
+  /* ===== Безделье посетителя ===== */
+  var lastAct = Date.now(), idleShown = false;
+  ["pointermove", "pointerdown", "keydown", "scroll", "touchstart"].forEach(function (ev) {
+    addEventListener(ev, function () { lastAct = Date.now(); idleShown = false; }, { passive: true });
+  });
+  setInterval(function () {
+    if (!idleShown && !document.hidden && Date.now() - lastAct > 45000) {
+      idleShown = true;
+      toast("45 секунд без дела. Вы прирождённый сотрудник.");
+    }
+  }, 5000);
+
+  /* ===== Мелочи ===== */
+  var trackEl = $("#track");
+  trackEl.innerHTML += trackEl.innerHTML;
+  var origTitle = document.title;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { origTitle = document.title; document.title = "Вернитесь, мы скучаем (но не работаем)"; }
+    else document.title = origTitle;
+  });
+  var v = store.get("visits", 0) + 1; store.set("visits", v);
+  $("#visits").textContent = v;
+
+  /* ===== Старт ===== */
+  var startHash = location.hash.slice(1);
+  var startPage = PAGES[startHash] ? startHash : "home";
+  show(startPage, true);
+  var t0 = Date.now();
+  function begin() {
+    var left = Math.max(0, 1500 - (Date.now() - t0));
+    wait(left, function () {
+      openShutter(function () { document.body.classList.remove("loading"); });
+      wait(500, function () { if (enter[startPage]) enter[startPage](); });
+    });
+  }
+  if (document.readyState === "complete") begin(); else addEventListener("load", begin);
+})();
+</script>
+</body>
+</html>

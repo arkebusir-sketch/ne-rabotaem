@@ -415,11 +415,21 @@ const GRINDER_CYL = { x: GRIND.x, z: GRIND.z, r: .8, top: 3.8 };
 
 /* ================= Перетаскиваемые предметы ================= */
 const draggables = [];
+const SIZES = {
+  portafilter: { h: .28, inner: .36, floor: .05 },
+  tamper: { h: .95 },
+  cup: { h: .85, inner: .38, floor: .04 },
+  carton: { h: 1.4 },
+  pitcher: { h: .75, inner: .31, floor: .04 },
+  spoon: { h: .06 },
+  sugar: { h: .16 }
+};
 function makeDraggable(group, kind, name, home, r = .4) {
   group.userData = Object.assign(group.userData || {}, {
     kind, name, home: home.clone(), target: home.clone(), tilt: 0,
-    mode: "free", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r, rest: 0
-  });
+    mode: "free", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r, rest: 0,
+    on: null, prev: home.clone(), grounded: true
+  }, SIZES[kind] || {});
   group.position.copy(home);
   group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(group); draggables.push(group); return group;
@@ -692,19 +702,28 @@ const GRAV = 26;
 const UP = new THREE.Vector3(0, 1, 0);
 function onCounter(p) { return p.x > COUNTER.x0 && p.x < COUNTER.x1 && p.z > COUNTER.z0 && p.z < COUNTER.z1; }
 function supportY(o, prevY) {
-  const p = o.position, r = o.userData.r * .5;
-  let g = onCounter(p) ? 0 : -Infinity;
+  const p = o.position, u = o.userData, r = u.r * .5;
+  let g = onCounter(p) ? 0 : -Infinity, on = null;
   for (const b of BOXES) {
     if (p.x > b.x0 - r && p.x < b.x1 + r && p.z > b.z0 - r && p.z < b.z1 + r && prevY >= b.top - .12) g = Math.max(g, b.top);
   }
   const dx = p.x - GRINDER_CYL.x, dz = p.z - GRINDER_CYL.z;
   if (Math.hypot(dx, dz) < GRINDER_CYL.r && prevY >= GRINDER_CYL.top - .12) g = Math.max(g, GRINDER_CYL.top);
-  if (o.userData.kind === "cup") {
-    for (const c of cups) {
-      if (c === o || !c.visible || c === held || c.userData.mode === "carry") continue;
-      if (Math.hypot(c.position.x - p.x, c.position.z - p.z) < .3 && c.position.y < prevY - .05) g = Math.max(g, c.position.y + NEST);
+  for (const b of draggables) {
+    const ub = b.userData;
+    if (b === o || !b.visible || ub.mode === "carry" || ub.mode === "gone" || ub.on === o) continue;
+    const d = Math.hypot(b.position.x - p.x, b.position.z - p.z);
+    let surf = -Infinity;
+    if (u.kind === "cup" && ub.kind === "cup") {
+      if (d < .3 && b.position.y < prevY - .05) surf = b.position.y + NEST;
+    } else if (ub.inner && u.r <= ub.inner && d < ub.inner - u.r * .4 + .04) {
+      surf = b.position.y + ub.floor;           // помещается: ложится внутрь
+    } else if (d < ub.r * .9 + u.r * .35) {
+      surf = b.position.y + ub.h;               // не помещается: лежит сверху
     }
+    if (surf > g && prevY >= surf - .12) { g = surf; on = b; }
   }
+  u.on = on;
   return g;
 }
 function collide(o, prev) {
@@ -731,6 +750,10 @@ function collide(o, prev) {
     if (vn < 0) { v.x -= 1.4 * vn * nx; v.z -= 1.4 * vn * nz; sKnock(-vn); }
   }
 }
+function restsOn(a, b) {
+  for (let o = a.userData.on, i = 0; o && i < 8; o = o.userData.on, i++) if (o === b) return true;
+  return false;
+}
 function wrapAngle(a) { a = a % (Math.PI * 2); if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; }
 function stepPhysics(o, dt) {
   const u = o.userData, v = u.vel;
@@ -750,6 +773,7 @@ function stepPhysics(o, dt) {
     } else { v.y = 0; grounded = true; }
     v.x *= Math.exp(-dt * 8); v.z *= Math.exp(-dt * 8);
   }
+  u.grounded = grounded;
   if (grounded) {
     u.spin.multiplyScalar(Math.exp(-dt * 12));
     o.rotation.x = THREE.MathUtils.lerp(wrapAngle(o.rotation.x), 0, 1 - Math.exp(-dt * 12));
@@ -779,7 +803,7 @@ const LOST_MSG = {
 };
 function lose(o) {
   const u = o.userData; u.lost = true; u.mode = "gone"; o.visible = false;
-  if (u.kind === "sugar") { scene.remove(o); if (sugarCube === o) sugarCube = null; return; }
+  if (u.kind === "sugar") { removeSugar(o); return; }
   sCrash(); toast(LOST_MSG[u.kind] || "Улетело!");
   if (u.kind === "portafilter") { Object.assign(pf, { slot: "free", grounds: 0, tamped: false, tampQ: 0, angle: 0, locked: false, brewed: 0 }); if (tamperOn) { tamperOn = false; tamperObj.userData.mode = "free"; } }
   if (u.kind === "pitcher") { pit.milk = 0; pit.temp = 6; pit.slot = "free"; }
@@ -812,6 +836,7 @@ waterBtn.userData = { kind: "waterBtn", name: "Кнопка «Вода»" };
 steamKnob.userData = { kind: "steamKnob", name: "Ручка «Пар»" };
 grindBtn.userData = { kind: "grindBtn", name: "Кнопка кофемолки" };
 let held = null, holdAct = null, twisting = false, pressing = false, tampPress = 0, stirAcc = 0, stirLast = null, stirCup = null, sugarCube = null;
+const sugars = [];
 let px = 0, py = 0, lastX = 0, rmbTouch = false;
 const trail = [];
 const lift = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.35);
@@ -825,7 +850,7 @@ function rootOf(o) { while (o && !(o.userData && o.userData.kind)) o = o.parent;
 function pickObj() {
   ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObjects(pickables.filter((o) => o.visible), true);
-  for (const h of hits) { const r = rootOf(h.object); if (r && r !== held && r !== sugarCube && r.userData.mode !== "carry") return r; }
+  for (const h of hits) { const r = rootOf(h.object); if (r && r !== held && r.userData.kind !== "sugar" && r.userData.mode !== "carry") return r; }
   return null;
 }
 function cursorPoint() {
@@ -906,8 +931,9 @@ function grabSugar() {
   sugarCube = new THREE.Mesh(new THREE.BoxGeometry(.16, .16, .16), CHALK);
   sugarCube.castShadow = true;
   sugarCube.position.set(4.5, .6, -.5);
-  sugarCube.userData = { kind: "sugar", name: "Сахар", target: new THREE.Vector3(4.5, 1.3, -.5), tilt: 0, mode: "held", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r: .1, rest: 0 };
-  scene.add(sugarCube); held = sugarCube; trail.length = 0;
+  sugarCube.userData = Object.assign({ kind: "sugar", name: "Сахар", target: new THREE.Vector3(4.5, 1.3, -.5), tilt: 0, mode: "held", vel: new THREE.Vector3(), spin: new THREE.Vector3(), r: .1, rest: 0, on: null, prev: new THREE.Vector3(4.5, .6, -.5), grounded: false, born: performance.now() }, SIZES.sugar);
+  scene.add(sugarCube); sugars.push(sugarCube); held = sugarCube; trail.length = 0;
+  while (sugars.length > 30) removeSugar(sugars[0]);
   document.body.classList.add("holding");
   sClick();
 }
@@ -948,9 +974,9 @@ function drop() {
   if (k === "sugar") {
     const c = nearestCup(o, .55);
     if (c && speed < 6) { sugarInto(c, o); return; }
-    release(o, vel); return;
+    sugarCube = null; release(o, vel); return;
   }
-  if (k === "spoon" && stirCup && speed < 6) { snap(o, o.userData.home); stirCup = null; return; }
+  if (k === "spoon" && stirCup && speed < 6) { stirCup = null; release(o, new THREE.Vector3()); return; }
   if (k === "tamper" && z) { tamperOn = true; snap(o, z.pos); sClick(); return; }
   if (k === "portafilter" && z) {
     if (z.id === "knock") {
@@ -970,10 +996,16 @@ function drop() {
   if (k === "pitcher" && z) { snap(o, z.pos); pit.slot = "steam"; sClick(); return; }
   release(o, vel);
 }
+function removeSugar(cube) {
+  cube.userData.mode = "gone"; scene.remove(cube);
+  const i = sugars.indexOf(cube); if (i >= 0) sugars.splice(i, 1);
+  if (sugarCube === cube) sugarCube = null;
+  if (held === cube) { held = null; document.body.classList.remove("holding"); }
+}
 function sugarInto(c, cube) {
   c.userData.st.sugar++; lastCup = c; sPlop();
   toast("Плюх! Сахар в кружке: " + c.userData.st.sugar + ".");
-  scene.remove(cube); if (sugarCube === cube) sugarCube = null;
+  removeSugar(cube);
 }
 function rmb(hit) {
   if (!hit) return;
@@ -1163,7 +1195,15 @@ function update(dt, now) {
     }
   }
   // Остальные предметы: прилипшие едут к своему месту, свободные подчиняются физике
-  const bodies = draggables.concat(sugarCube && sugarCube !== held ? [sugarCube] : []);
+  const bodies = draggables.concat(sugars.filter((c) => c !== held));
+  // Что лежит на предмете или внутри него, переезжает вместе с ним
+  for (const o of bodies) {
+    const u = o.userData;
+    if (u.mode !== "free" || !u.on || !u.grounded) continue;
+    const c = u.on.userData;
+    if (!u.on.visible || c.mode === "gone") { u.on = null; continue; }
+    o.position.add(u.on.position.clone().sub(c.prev));
+  }
   for (const o of bodies) {
     if (o === held || !o.visible) continue;
     const u = o.userData;
@@ -1177,9 +1217,8 @@ function update(dt, now) {
       const n = Math.ceil(dt / .016);
       for (let i = 0; i < n && u.mode === "free"; i++) stepPhysics(o, dt / n);
       if (u.kind === "sugar" && u.mode === "free") {
-        const c = nearestCup(o, .36);
-        if (c && o.position.y < c.position.y + .95 && o.position.y > c.position.y && u.vel.y <= 0) sugarInto(c, o);
-        else if (u.rest > 1.5) { u.mode = "gone"; scene.remove(o); if (sugarCube === o) sugarCube = null; }
+        if (u.on && u.on.userData.kind === "cup") sugarInto(u.on, o);
+        else if (u.rest > 8) removeSugar(o);
       }
     }
   }
@@ -1190,7 +1229,8 @@ function update(dt, now) {
       const a = solids[i], b = solids[j], ua = a.userData, ub = b.userData;
       const aF = ua.mode === "free", bF = ub.mode === "free";
       if (!aF && !bF) continue;
-      if (Math.abs(a.position.y - b.position.y) > (ua.kind === "cup" && ub.kind === "cup" ? .1 : .6)) continue;
+      if (restsOn(a, b) || restsOn(b, a)) continue;
+      if (a.position.y >= b.position.y + (ub.h || .5) - .08 || b.position.y >= a.position.y + (ua.h || .5) - .08) continue;
       const dx = b.position.x - a.position.x, dz = b.position.z - a.position.z, d = Math.hypot(dx, dz);
       const min = (ua.r + ub.r) * .85;
       if (d >= min || d < 1e-4) continue;
@@ -1348,6 +1388,7 @@ function update(dt, now) {
     }
   }
   hopper.position.x = grinding ? GRIND.x + Math.sin(t * 90) * .015 : GRIND.x;
+  for (const o of draggables) o.userData.prev.copy(o.position);
   if (G.running && !G.serving && order() && (now - order().t0) / 1000 > G.patience) walkOut();
 }
 function loop() {
@@ -1395,7 +1436,7 @@ function start() {
 }
 $("#startBtn").addEventListener("click", start);
 $("#againBtn").addEventListener("click", start);
-window.__coffee = { renderer, G, pf, pit, cups, zones, camera, draggables, objs: { pfObj, tamperObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn }, get cup() { return cup; }, get held() { return held; } };
+window.__coffee = { renderer, G, pf, pit, cups, sugars, zones, camera, draggables, objs: { pfObj, tamperObj, cartonObj, pitObj, spoonObj, sugarBowl, brewBtn, waterBtn, steamKnob, grindBtn }, get cup() { return cup; }, get held() { return held; } };
 </script>
 </body>
 </html>

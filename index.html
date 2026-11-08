@@ -452,6 +452,63 @@
   .note-form .btn { align-self: flex-start; }
   .note-msg { margin: 0; font-size: 15px; font-style: italic; }
 
+  /* ===== Дверь: стикеры ===== */
+  .door.placing { cursor: crosshair; outline: 5px dashed var(--sign); outline-offset: 6px; }
+  .door.placing .handle { pointer-events: none; }
+  .stickers { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+  .stickers .sticker { pointer-events: auto; }
+  .sticker {
+    position: absolute; width: 112px; height: 112px;
+    transform: translate(-50%, -50%) rotate(var(--r));
+    border: 5px solid #fff; border-radius: 18px;
+    box-shadow: 2px 3px 0 rgba(14, 19, 48, .35), 0 0 0 2px rgba(14, 19, 48, .18);
+  }
+  .sticker img { display: block; width: 100%; height: 100%; border-radius: 12px; }
+  .sticker small {
+    position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%);
+    background: var(--chalk); color: var(--ink); padding: 0 6px; border-radius: 4px;
+    font-size: 12px; font-style: italic; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  .sticker:hover small, .sticker:focus-within small { opacity: 1; }
+  .sticker .tear {
+    position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--ink); color: var(--chalk); border: 0; font: 700 16px/1 var(--text); cursor: pointer;
+    opacity: 0; transition: opacity .15s;
+  }
+  .sticker:hover .tear, .sticker:focus-within .tear { opacity: 1; }
+  @media (hover: none) { .sticker .tear { opacity: .85; } }
+  .door.placing .tear { display: none; }
+  .sticker.new { animation: slap .35s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes slap { from { transform: translate(-50%, -50%) rotate(var(--r)) scale(1.8); opacity: 0; } }
+  .sticker.off { animation: peel .55s ease-in forwards; pointer-events: none; }
+  @keyframes peel {
+    30% { transform: translate(-50%, -50%) rotate(calc(var(--r) - 22deg)) scale(1.06); }
+    to { transform: translate(-50%, 650px) rotate(calc(var(--r) + 60deg)); opacity: 0; }
+  }
+  .ghost {
+    position: absolute; z-index: 3; width: 112px; height: 112px; pointer-events: none; opacity: .85;
+    transform: translate(-50%, -50%) rotate(-5deg);
+    border: 5px dashed var(--ink); border-radius: 18px;
+  }
+  .ghost img { display: block; width: 100%; height: 100%; border-radius: 12px; }
+  .pad { padding: 18px; margin-bottom: 32px; }
+  .pad-help { margin: 4px 0 0; font-size: 15px; }
+  .pad h3 { font-size: 26px; }
+  #pad {
+    display: block; width: 100%; max-width: 300px; height: auto; aspect-ratio: 1; margin: 12px 0;
+    background: var(--sb, #fff); border: 4px solid var(--ink); border-radius: 16px;
+    touch-action: none; cursor: crosshair;
+  }
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .tools-label { margin: 4px 0 6px; font-size: 15px; }
+  .sw { width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 3px solid var(--ink); background: var(--c); cursor: pointer; }
+  .sw.sq { border-radius: 8px; }
+  .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--chalk), 0 0 0 6px var(--ink); }
+  .tool { font: 15px var(--text); background: #fff; color: var(--ink); border: 3px solid var(--ink); border-radius: 8px; padding: 3px 10px; cursor: pointer; }
+  .tool[aria-pressed="true"] { background: var(--sign); }
+  .pad .btn { margin-top: 6px; }
+  .pad-msg { margin: 12px 0 0; font-size: 15px; font-style: italic; }
+
   /* Конструктор отмазок */
   .excuse { margin-top: 64px; max-width: 900px; padding: 22px 24px; }
   .excuse h3 { font-size: 34px; }
@@ -482,6 +539,10 @@
   #task { display: block; width: 100%; max-width: 900px; height: auto; aspect-ratio: 16 / 9; background: var(--ink); border: 6px solid var(--chalk); border-radius: 12px; touch-action: none; }
   .game-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 16px; }
   .game-bar p { margin: 0; font-style: italic; }
+  .promo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 28px; margin-top: 56px; padding: 22px 24px; max-width: 900px; }
+  .promo > div { flex: 1 1 360px; }
+  .promo h3 { font-size: 34px; }
+  .promo p { margin: 4px 0 0; }
 
   /* Штат: доска почёта, голоса, пароль */
   .honor { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-bottom: 4px solid var(--ink); background: #fff3b0; }
@@ -580,6 +641,7 @@
     .complaints li { padding-right: 0; }
     .complaints .stamp { position: relative; right: auto; top: auto; margin: 8px 0 0; display: inline-block; }
     .door-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .sticker, .ghost { width: 84px; height: 84px; border-width: 4px; }
     .door { height: 540px; }
     .note-s { width: 124px; min-height: 90px; font-size: 14px; padding: 8px 9px 6px; }
     .reels { grid-template-columns: minmax(0, 1fr); }
@@ -669,12 +731,34 @@
         <div class="door" id="doorEl">
           <span class="door-plate">Служебный вход. Не входить. Не выходить.</span>
           <div class="notes" id="notes"></div>
+          <div class="stickers" id="stickers"></div>
+          <div class="ghost" id="ghost" hidden><img alt=""></div>
           <button class="handle" id="handle" type="button" aria-label="Дёрнуть ручку"></button>
         </div>
       </div>
       <div class="door-side">
         <button class="bell" id="bell" type="button"><span>Звонок</span></button>
         <p class="bubble" id="bubble" aria-live="polite">Позвоните. Вдруг кто-то есть.</p>
+        <div class="pad paper">
+          <h3>Нарисовать стикер</h3>
+          <p class="pad-help">Нарисуйте и приклейте на дверь в любое место.</p>
+          <canvas id="pad" width="180" height="180" aria-label="Холст для рисования стикера"></canvas>
+          <div class="tools" id="padColors" aria-label="Цвет кисти"></div>
+          <div class="tools">
+            <button class="tool" type="button" data-size="3">Тонко</button>
+            <button class="tool" type="button" data-size="7" aria-pressed="true">Средне</button>
+            <button class="tool" type="button" data-size="14">Жирно</button>
+            <button class="tool" type="button" id="padErase" aria-pressed="false">Ластик</button>
+          </div>
+          <div class="tools">
+            <button class="tool" type="button" id="padUndo">Отменить</button>
+            <button class="tool" type="button" id="padClear">Очистить</button>
+          </div>
+          <p class="tools-label">Цвет стикера</p>
+          <div class="tools" id="padBgs" aria-label="Цвет стикера"></div>
+          <button class="btn" id="stickBtn" type="button">Приклеить на дверь</button>
+          <p class="pad-msg" id="padMsg" aria-live="polite">Стикеры видят все. Любой можно отклеить.</p>
+        </div>
         <form class="note-form paper" id="noteForm">
           <h3>Оставить записку</h3>
           <textarea id="noteText" maxlength="80" placeholder="Был тут, вас не было" aria-label="Текст записки"></textarea>
@@ -774,6 +858,13 @@
         <button class="btn" id="taskStart" type="button">Начать уклоняться</button>
         <p id="taskInfo" aria-live="polite">Ваш рекорд: 0 с.</p>
       </div>
+    </div>
+    <div class="promo paper">
+      <div>
+        <h3>Кофе-брейк 3D</h3>
+        <p>Станьте баристой: настоящая кофемашина, кофемолка, темпер, молоко на пару. Заказы приходят от сотрудников из штата, лучшие попадают в рейтинг.</p>
+      </div>
+      <a class="btn" href="coffee.html">Сварить кофе</a>
     </div>
   </section>
 
@@ -1026,7 +1117,7 @@
     reasons: function () { replay($("#sheet"), "pin", ["tear"]); },
     staff: function () { refreshStaff(); },
     play: function () { loadDayRec(); loadBoard(); },
-    door: function () { loadNotes(); loadHandle(); }
+    door: function () { loadNotes(); loadHandle(); loadStickers(); }
   };
   function show(page, skipEnter) {
     $$(".page").forEach(function (p) { p.classList.toggle("on", p.id === page); });
@@ -1824,6 +1915,7 @@
   }
   function say(text) { bubble.textContent = text; replay(bubble, "pop"); }
   handleBtn.addEventListener("click", function () {
+    if (placing) return;
     handleBtn.classList.add("pull");
     replay(doorEl, "rattle");
     setTimeout(function () { handleBtn.classList.remove("pull"); }, 220);
@@ -1936,6 +2028,167 @@
       .then(function () { btn.disabled = false; });
   });
   setInterval(function () { if (current === "door" && !document.hidden) { loadNotes(); loadHandle(); } }, 20000);
+
+  /* ===== Дверь: рисование стикера ===== */
+  var padCv = $("#pad"), pctx = padCv.getContext("2d"), PW2 = padCv.width, PH2 = padCv.height;
+  var PAD_COLORS = ["#0e1330", "#e0301e", "#1d2fd0", "#12b76a", "#ffd21f", "#7a2bd6", "#ff7ab6", "#fbfaf5"];
+  var PAD_BGS = ["#ffffff", "#fff59a", "#ffc2d6", "#b9f0c9", "#bfe3ff", "#0e1330"];
+  var padColor = PAD_COLORS[0], padSize = 7, erasing = false, drawing = false, lastP = null, padHist = [], padBg = 0;
+  function swatches(box, list, cls, label, onPick, initial) {
+    list.forEach(function (c, i) {
+      var b = el("button", "sw" + (cls ? " " + cls : ""));
+      b.type = "button"; b.style.setProperty("--c", c);
+      b.setAttribute("aria-label", label + " " + (i + 1));
+      b.setAttribute("aria-pressed", i === initial ? "true" : "false");
+      b.addEventListener("click", function () {
+        $$(".sw", box).forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+        onPick(i);
+      });
+      box.appendChild(b);
+    });
+  }
+  swatches($("#padColors"), PAD_COLORS, null, "Цвет кисти", function (i) {
+    padColor = PAD_COLORS[i]; erasing = false; $("#padErase").setAttribute("aria-pressed", "false");
+  }, 0);
+  swatches($("#padBgs"), PAD_BGS, "sq", "Цвет стикера", function (i) {
+    padBg = i; padCv.style.setProperty("--sb", PAD_BGS[i]);
+  }, 0);
+  $$(".tool[data-size]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      padSize = +b.getAttribute("data-size");
+      $$(".tool[data-size]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    });
+  });
+  $("#padErase").addEventListener("click", function () {
+    erasing = !erasing; this.setAttribute("aria-pressed", erasing ? "true" : "false");
+  });
+  $("#padUndo").addEventListener("click", function () { if (padHist.length) pctx.putImageData(padHist.pop(), 0, 0); });
+  function clearPad() { padHist.push(pctx.getImageData(0, 0, PW2, PH2)); pctx.clearRect(0, 0, PW2, PH2); }
+  $("#padClear").addEventListener("click", clearPad);
+  function padPoint(e) { var r = padCv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * PW2, y: (e.clientY - r.top) / r.height * PH2 }; }
+  function brush() {
+    pctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
+    pctx.strokeStyle = pctx.fillStyle = padColor;
+    pctx.lineWidth = erasing ? padSize * 2 : padSize;
+    pctx.lineCap = pctx.lineJoin = "round";
+  }
+  padCv.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    try { padCv.setPointerCapture(e.pointerId); } catch (err) {}
+    padHist.push(pctx.getImageData(0, 0, PW2, PH2));
+    if (padHist.length > 25) padHist.shift();
+    drawing = true; lastP = padPoint(e);
+    brush();
+    pctx.beginPath(); pctx.arc(lastP.x, lastP.y, pctx.lineWidth / 2, 0, Math.PI * 2); pctx.fill();
+  });
+  padCv.addEventListener("pointermove", function (e) {
+    if (!drawing) return;
+    var p = padPoint(e);
+    brush();
+    pctx.beginPath(); pctx.moveTo(lastP.x, lastP.y); pctx.lineTo(p.x, p.y); pctx.stroke();
+    lastP = p;
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { padCv.addEventListener(ev, function () { drawing = false; }); });
+  function padEmpty() {
+    var d = pctx.getImageData(0, 0, PW2, PH2).data;
+    for (var i = 3; i < d.length; i += 4) if (d[i] > 10) return false;
+    return true;
+  }
+
+  /* ===== Дверь: стикеры ===== */
+  var fridge = $("#doorEl"), stickersEl = $("#stickers"), ghost = $("#ghost"), padMsg = $("#padMsg");
+  var stickers = {}, placing = null;
+  function validSticker(s) {
+    return s && typeof s.img === "string" && s.img.indexOf("data:image/png;base64,") === 0 && typeof s.by === "string" &&
+      typeof s.x === "number" && typeof s.y === "number";
+  }
+  function renderStickers(freshId) {
+    stickersEl.textContent = "";
+    var ids = Object.keys(stickers).filter(function (k) { return validSticker(stickers[k]); })
+      .sort(function (a, b) { return (stickers[a].t || 0) - (stickers[b].t || 0); }).slice(-40);
+    ids.forEach(function (id) {
+      var s = stickers[id];
+      var d = el("div", "sticker" + (id === freshId ? " new" : ""));
+      d.style.left = Math.max(5, Math.min(95, s.x)) + "%";
+      d.style.top = Math.max(5, Math.min(95, s.y)) + "%";
+      d.style.setProperty("--r", (+s.r || 0) + "deg");
+      d.style.background = PAD_BGS[(+s.bg || 0) % PAD_BGS.length];
+      var img = el("img"); img.src = s.img; img.alt = "Стикер от " + s.by; img.draggable = false;
+      d.appendChild(img);
+      d.appendChild(el("small", null, s.by));
+      var x = el("button", "tear", "×");
+      x.type = "button"; x.setAttribute("aria-label", "Отклеить стикер от " + s.by);
+      x.addEventListener("click", function (e) { e.stopPropagation(); peelSticker(id, d); });
+      d.appendChild(x);
+      stickersEl.appendChild(d);
+    });
+  }
+  function peelSticker(id, d) {
+    if (placing) return;
+    d.classList.add("off");
+    (shared ? req("DELETE", "/fridge/" + id) : Promise.resolve()).then(function () {
+      setTimeout(function () { delete stickers[id]; renderStickers(); }, reduce ? 0 : 550);
+    }, function () { d.classList.remove("off"); toast("Стикер приклеен намертво: нет связи."); });
+  }
+  function loadStickers() {
+    if (!shared) { renderStickers(); return; }
+    req("GET", "/fridge", undefined, 'orderBy="t"&limitToLast=40').then(function (o) {
+      stickers = o && typeof o === "object" ? o : {};
+      renderStickers();
+    }, function () { padMsg.textContent = "Стикеры не загрузились. Проверьте интернет."; });
+  }
+  function stopPlacing(msg) {
+    placing = null;
+    fridge.classList.remove("placing");
+    ghost.hidden = true;
+    if (msg) padMsg.textContent = msg;
+  }
+  $("#stickBtn").addEventListener("click", function () {
+    if (placing) { stopPlacing("Отменено."); return; }
+    if (padEmpty()) { padMsg.textContent = "Сначала нарисуйте что-нибудь."; return; }
+    var data = padCv.toDataURL("image/png");
+    if (data.length > 60000) { padMsg.textContent = "Рисунок слишком сложный. Упростите его немного."; return; }
+    placing = { img: data, bg: padBg };
+    ghost.querySelector("img").src = data;
+    ghost.style.background = PAD_BGS[padBg];
+    ghost.hidden = true;
+    fridge.classList.add("placing");
+    padMsg.textContent = "Теперь нажмите на дверь там, куда хотите приклеить. Esc или кнопка ещё раз: отмена.";
+    if (innerWidth <= 860) fridge.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  });
+  function fridgePos(e) {
+    var r = fridge.getBoundingClientRect();
+    var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    if (!isFinite(x)) x = 50;
+    if (!isFinite(y)) y = 50;
+    return { x: Math.max(8, Math.min(92, x)), y: Math.max(8, Math.min(92, y)) };
+  }
+  fridge.addEventListener("pointermove", function (e) {
+    if (!placing) return;
+    var p = fridgePos(e);
+    ghost.hidden = false;
+    ghost.style.left = p.x + "%"; ghost.style.top = p.y + "%";
+  });
+  fridge.addEventListener("pointerleave", function () { if (placing) ghost.hidden = true; });
+  fridge.addEventListener("click", function (e) {
+    if (!placing) return;
+    var p = fridgePos(e), s = placing;
+    var item = { img: s.img, bg: s.bg, by: getNick() || "Аноним", x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, r: Math.round(Math.random() * 20 - 10) };
+    stopPlacing("Клеим…");
+    var send = shared ? req("POST", "/fridge", { img: item.img, bg: item.bg, by: item.by, x: item.x, y: item.y, r: item.r, t: { ".sv": "timestamp" } }).then(function (r) { return r.name; })
+      : Promise.resolve("l" + Date.now());
+    send.then(function (id) {
+      item.t = Date.now(); stickers[id] = item;
+      renderStickers(id);
+      padHist = []; pctx.clearRect(0, 0, PW2, PH2);
+      padMsg.textContent = "Приклеено! Теперь его видят все." + (getNick() ? "" : " Подпись берётся из бейджа в «Развлечениях».");
+    }, function () {
+      placing = s; fridge.classList.add("placing");
+      padMsg.textContent = "Не приклеилось: нет связи. Нажмите на дверь ещё раз.";
+    });
+  });
+  addEventListener("keydown", function (e) { if (e.key === "Escape" && placing) stopPlacing("Отменено."); });
+  setInterval(function () { if (current === "door" && !document.hidden && !placing) loadStickers(); }, 20000);
 
   /* ===== Конструктор отмазок ===== */
   var EX = [

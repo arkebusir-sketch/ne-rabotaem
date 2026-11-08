@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Не работаем</title>
+<meta name="description" content="Мы не работаем. И вам не советуем.">
+<style>
+  :root { --bg:#14110f; --fg:#f3ece2; --muted:#a89f93; --accent:#ff6b3d; --card:#201b18; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height:1.5; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: clamp(40px, 9vw, 84px); line-height:1; margin:0 0 12px; letter-spacing:-0.03em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 18px; margin: 0 0 40px; }
+  section { background: var(--card); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+  h2 { margin: 0 0 14px; font-size: 20px; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 12px 18px; background: var(--accent); color: #1a0f0a; font-weight: 600; }
+  button:hover { filter: brightness(1.1); }
+  #excuse { font-size: 22px; min-height: 66px; margin: 0 0 14px; }
+  .bar { height: 14px; background: #33291f; border-radius: 99px; overflow: hidden; }
+  .bar i { display:block; height:100%; width:0; background: linear-gradient(90deg, #ffb347, var(--accent)); transition: width 1.2s ease; }
+  .bar-note { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  #runaway { position: relative; height: 110px; }
+  #runaway button { position: absolute; left: 0; top: 30px; transition: left .12s, top .12s; }
+  ul.friends { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  ul.friends li { background: #2a2420; border-radius: 10px; padding: 12px 14px; }
+  ul.friends b { display:block; }
+  ul.friends small { color: var(--muted); }
+  footer { color: var(--muted); font-size: 14px; text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Мы <span>не работаем</span></h1>
+  <p class="sub">Эта страница ничего не продаёт, ничего не обещает и никуда не торопится.</p>
+
+  <section>
+    <h2>Почему мы не работаем сегодня</h2>
+    <p id="excuse">Нажмите кнопку, чтобы узнать причину.</p>
+    <button id="excuseBtn">Придумать причину</button>
+  </section>
+
+  <section>
+    <h2>Уровень продуктивности</h2>
+    <div class="bar"><i id="bar"></i></div>
+    <p class="bar-note" id="barNote">Измеряем…</p>
+  </section>
+
+  <section id="runaway">
+    <h2>Начать работать</h2>
+    <button id="workBtn">Начать работать</button>
+  </section>
+
+  <section>
+    <h2>Наша команда</h2>
+    <ul class="friends" id="friends"></ul>
+  </section>
+
+  <footer>Вы пришли на эту страницу <b id="visits">1</b>-й раз. Могли бы заняться делом.</footer>
+</main>
+
+<script>
+  // === Меняйте этот блок под себя ===
+  var FRIENDS = [
+    { name: "Имя друга 1", role: "Директор по ничегонеделанию" },
+    { name: "Имя друга 2", role: "Главный по перекурам" },
+    { name: "Имя друга 3", role: "Специалист по отговоркам" }
+  ];
+  var EXCUSES = [
+    "Совещание по поводу того, нужны ли совещания.",
+    "Кот наступил на кнопку, и всё сломалось.",
+    "Ждём вдохновения. Оно сказало, что придёт позже.",
+    "Идёт обновление реальности. Осталось 97%.",
+    "Все умные идеи закончились, привезут завтра.",
+    "Изучаем, как работают те, кто работает. Пока не понятно.",
+    "Дедлайн перенесён на «когда-нибудь».",
+    "Плановый технический отдых. Бессрочный."
+  ];
+  // ==================================
+
+  var excuse = document.getElementById("excuse");
+  document.getElementById("excuseBtn").onclick = function () {
+    excuse.textContent = EXCUSES[Math.floor(Math.random() * EXCUSES.length)];
+  };
+
+  var bar = document.getElementById("bar"), note = document.getElementById("barNote");
+  setTimeout(function () {
+    var v = Math.floor(Math.random() * 8); // всегда почти ноль
+    bar.style.width = v + "%";
+    note.textContent = "Продуктивность: " + v + "%. Всё идёт по плану.";
+  }, 300);
+
+  var work = document.getElementById("workBtn"), box = document.getElementById("runaway");
+  function dodge() {
+    var maxX = box.clientWidth - work.offsetWidth, maxY = box.clientHeight - work.offsetHeight;
+    work.style.left = Math.floor(Math.random() * maxX) + "px";
+    work.style.top = Math.max(28, Math.floor(Math.random() * maxY)) + "px";
+  }
+  work.addEventListener("mouseenter", dodge);
+  work.addEventListener("touchstart", function (e) { e.preventDefault(); dodge(); }, { passive: false });
+  work.onclick = function () { document.querySelector("#runaway h2").textContent = "Не вышло. Работа сбежала."; };
+
+  var list = document.getElementById("friends");
+  FRIENDS.forEach(function (f) {
+    var li = document.createElement("li");
+    var b = document.createElement("b"); b.textContent = f.name;
+    var s = document.createElement("small"); s.textContent = f.role;
+    li.appendChild(b); li.appendChild(s); list.appendChild(li);
+  });
+
+  try {
+    var n = parseInt(localStorage.getItem("visits") || "0", 10) + 1;
+    localStorage.setItem("visits", n);
+    document.getElementById("visits").textContent = n;
+  } catch (e) {}
+</script>
+</body>
+</html>

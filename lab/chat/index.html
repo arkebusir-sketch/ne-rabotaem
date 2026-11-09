@@ -605,13 +605,40 @@ let me = null;
 try { me = JSON.parse(localStorage.getItem("chat.me") || "null"); } catch (e) {}
 let skew = 0;                                    // серверное время − локальное
 const now = () => Date.now() + skew;
-const S = { users: {}, rooms: {}, reads: {}, typing: {}, msgs: {}, pending: {}, room: null, tab: "chats", q: "", reply: null, edit: null, loaded: false, unreadSeen: new Set(), listDrawn: false, forceBottom: false };
+const S = { previews: {}, users: {}, rooms: {}, reads: {}, typing: {}, msgs: {}, pending: {}, room: null, tab: "chats", q: "", reply: null, edit: null, loaded: false, unreadSeen: new Set(), listDrawn: false, forceBottom: false };
 const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const EASE = "cubic-bezier(.2,.7,.2,1)";
 
+/* ===== Сессия: база пускает только тех, кто вошёл по коду с почты ===== */
+const FB_KEY = "AIzaSyAuVkDeYWx9A3-gGSLqIBEcxtKxWadownM";
+const TOKEN_URL = qs.get("tok") || "https://securetoken.googleapis.com/v1/token?key=" + FB_KEY;
+let SESS = null; try { SESS = JSON.parse(localStorage.getItem("chat.sess") || "null"); } catch (e) {}
+function saveSess(x) { SESS = x; if (x) localStorage.setItem("chat.sess", JSON.stringify(x)); else localStorage.removeItem("chat.sess"); }
+let refreshing = null;
+async function token() {
+  if (!SESS) return null;
+  if (Date.now() < SESS.exp - 120000) return SESS.idToken;
+  if (!refreshing) refreshing = (async () => {
+    const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(SESS.refreshToken) });
+    const j = await r.json().catch(() => ({}));
+    if (!j.id_token) { if (r.status === 400) authLost(); throw new Error("token"); }
+    saveSess({ uid: j.user_id || SESS.uid, idToken: j.id_token, refreshToken: j.refresh_token, exp: Date.now() + Number(j.expires_in || 3600) * 1000 });
+  })().finally(() => (refreshing = null));
+  await refreshing; return SESS && SESS.idToken;
+}
+let lost = false;
+function authLost() {
+  if (lost) return; lost = true;
+  saveSess(null); toast("Сессия закончилась. Войдите по почте ещё раз");
+  setTimeout(() => location.reload(), 1600);
+}
+const withAuth = (url, t) => url + (t ? (url.includes("?") ? "&" : "?") + "auth=" + encodeURIComponent(t) : "");
+
 /* ===== База: REST + поток событий ===== */
 async function req(method, path, body) {
-  const r = await fetch(DB + path + ".json", { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  const t = await token();
+  const r = await fetch(withAuth(DB + path + ".json", t), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (r.status === 401) { const e = new Error("denied"); e.denied = true; throw e; }
   if (!r.ok) throw new Error("db " + r.status);
   return r.json();
 }
@@ -626,16 +653,23 @@ function setAt(tree, path, val) {
   return tree;
 }
 function stream(path, query, onData) {
-  let tree = {}, es = null, closed = false;
-  const open = () => {
-    es = new EventSource(DB + path + ".json" + (query || ""));
+  let tree = {}, es = null, closed = false, renewT = 0;
+  const open = async () => {
+    if (closed) return;
+    let t = null; try { t = await token(); } catch (e) { setTimeout(open, 5000); return; }
+    if (closed) return;
+    es && es.close();
+    es = new EventSource(withAuth(DB + path + ".json" + (query || ""), t));
+    // Токен живёт час: переподключаемся заранее со свежим
+    clearTimeout(renewT); if (SESS) renewT = setTimeout(open, Math.max(60000, SESS.exp - Date.now() - 90000));
+    es.addEventListener("auth_revoked", () => { es.close(); open(); });
     es.addEventListener("put", (e) => { const d = JSON.parse(e.data); tree = setAt(tree, d.path, d.data); onData(tree, d); });
     es.addEventListener("patch", (e) => { const d = JSON.parse(e.data); for (const k in d.data) tree = setAt(tree, d.path.replace(/\/$/, "") + "/" + k, d.data[k]); onData(tree, d); });
     es.addEventListener("cancel", () => { netError(); });
     es.onerror = () => { if (es.readyState === 2 && !closed) setTimeout(open, 3000); };
   };
   open();
-  return () => { closed = true; es && es.close(); };
+  return () => { closed = true; clearTimeout(renewT); es && es.close(); };
 }
 let netShown = false;
 function netError() { if (!netShown) { netShown = true; toast("Нет связи с базой. Проверьте интернет."); setTimeout(() => (netShown = false), 8000); } }
@@ -726,7 +760,7 @@ $("#meBtn").onclick = () => {
   };
   openCard($("#profile"));
 };
-$("#pfOut").onclick = () => { if (!confirm("Выйти из аккаунта на этом устройстве? Войти снова можно по коду с почты.")) return; localStorage.removeItem("chat.me"); location.reload(); };
+$("#pfOut").onclick = () => { if (!confirm("Выйти из аккаунта на этом устройстве? Войти снова можно по коду с почты.")) return; localStorage.removeItem("chat.me"); saveSess(null); location.reload(); };
 function renderMe() { $("#meBtn").innerHTML = avaHTML(me.uid, "md", me.name, me.color, { ava: me.ava, emoji: me.emoji }); }
 
 $("#newGroup").onclick = () => {
@@ -739,7 +773,8 @@ $("#newGroup").onclick = () => {
     e.preventDefault(); const title = $("#grName").value.trim(); if (!title) return;
     const members = { [me.uid]: true }; box.querySelectorAll("input:checked").forEach((c) => (members[c.value] = true));
     try {
-      const r = await req("POST", "/rooms", { title, type: "group", members, by: me.uid, created: SV, color: COLORS[Math.floor(Math.random() * 7)], last: { ts: SV, text: "Группа создана", from: "" } });
+      const r = await req("POST", "/rooms", { title, type: "group", members, by: me.uid, created: SV, color: COLORS[Math.floor(Math.random() * 7)], last: { ts: SV, from: "" } });
+      req("PUT", "/previews/" + r.name, { text: "Группа создана", from: "", ts: SV }).catch(() => {});
       closeCard($("#group")); openRoom(r.name);
     } catch (err) { netError(); }
   };
@@ -777,7 +812,7 @@ function renderList() {
     roomIds().forEach((rid) => {
       const r = S.rooms[rid] || {}, title = roomTitle(r, rid);
       if (S.q && !title.toLowerCase().includes(S.q)) return;
-      const last = r.last || {}, un = unread(rid);
+      const last = Object.assign({}, r.last || {}, S.previews[rid] && S.previews[rid].text != null ? { text: S.previews[rid].text } : {}), un = unread(rid);
       const who = last.from && last.from === me.uid ? "Вы: " : (r.type === "group" || rid === GENERAL) && last.from && S.users[last.from] ? S.users[last.from].name + ": " : "";
       const b = document.createElement("button"); b.className = "row" + (rid === S.room ? " active" : "") + (un ? " unread" : ""); b.dataset.id = "r" + rid;
       const ty = typersIn(rid);
@@ -825,7 +860,7 @@ async function openDM(u) {
   const id = "dm_" + [me.uid, u].sort().join("_");
   if (!S.rooms[id]) {
     S.rooms[id] = { type: "dm", members: { [me.uid]: true, [u]: true } };
-    req("PATCH", "/rooms/" + id, { type: "dm", members: { [me.uid]: true, [u]: true } }).catch(netError);
+    await req("PATCH", "/rooms/" + id, { type: "dm", members: { [me.uid]: true, [u]: true } }).catch(netError);
   }
   $("#tabs button[data-tab=chats]").click();
   openRoom(id);
@@ -888,8 +923,8 @@ function renderHeader(anim) {
 function plural(n, a, b, c) { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; }
 $("#leave").onclick = async () => {
   if (!confirm("Покинуть группу «" + roomTitle(S.rooms[S.room], S.room) + "»?")) return;
-  const rid = S.room; await req("DELETE", "/rooms/" + rid + "/members/" + me.uid).catch(netError);
-  sendSystem(rid, me.name + " вышел(а) из группы");
+  const rid = S.room; await sendSystem(rid, me.name + " вышел(а) из группы");
+  await req("DELETE", "/rooms/" + rid + "/members/" + me.uid).catch(netError);
   S.room = null; openRoom(GENERAL);
 };
 
@@ -1092,7 +1127,7 @@ async function send(img) {
   if (S.edit) {
     const k = S.edit; cancelReply(); ta.value = ""; autosize(); updateSend();
     await req("PATCH", "/msgs/" + rid + "/" + k, { text, edited: true }).catch(netError);
-    const ks = Object.keys(S.msgs).sort(); if (ks[ks.length - 1] === k) req("PATCH", "/rooms/" + rid + "/last", { text }).catch(() => {});
+    const ks = Object.keys(S.msgs).sort(); if (ks[ks.length - 1] === k) req("PATCH", "/previews/" + rid, { text }).catch(() => {});
     return;
   }
   const isImg = typeof img === "string", cid = Math.random().toString(36).slice(2, 10);
@@ -1108,7 +1143,7 @@ async function send(img) {
   typingSent = 0; req("DELETE", "/typing/" + rid + "/" + me.uid).catch(() => {});
   try {
     await req("POST", "/msgs/" + rid, msg);
-    await req("PATCH", "/rooms/" + rid, Object.assign({ last: { text: msg.img ? "Фото" : msg.text, from: me.uid, ts: SV } }, rid === GENERAL ? { title: "Общий чат", type: "public" } : {}));
+    await lastUpdate(rid, msg.img ? "Фото" : msg.text);
   } catch (e) { netError(); delete S.pending[cid]; if (S.room === rid) renderMsgs(); if (msg.text) { ta.value = msg.text; autosize(); updateSend(); } }
 }
 // Капля: текст отрывается от поля ввода, тянется жидкой ниткой и становится пузырём
@@ -1168,13 +1203,27 @@ async function sendSticker(key, fromImg) {
   }
   try {
     await req("POST", "/msgs/" + rid, msg);
-    await req("PATCH", "/rooms/" + rid, Object.assign({ last: { text: "Стикер", from: me.uid, ts: SV } }, rid === GENERAL ? { title: "Общий чат", type: "public" } : {}));
+    await lastUpdate(rid, "Стикер");
   } catch (e) { netError(); delete S.pending[cid]; if (S.room === rid) renderMsgs(); }
 }
-function sendSystem(rid, text) { req("POST", "/msgs/" + rid, { sys: true, from: "", text, ts: SV }).catch(() => {}); }
+function sendSystem(rid, text) { return req("POST", "/msgs/" + rid, { sys: true, from: me.uid, text, ts: SV }).catch(() => {}); }
 async function maybeFixLast(k) {
   const keys = Object.keys(S.msgs).sort(); if (keys[keys.length - 1] !== k) return;
-  req("PATCH", "/rooms/" + S.room + "/last", { text: "Сообщение удалено" }).catch(() => {});
+  req("PATCH", "/previews/" + S.room, { text: "Сообщение удалено" }).catch(() => {});
+}
+// Последнее сообщение: время и автор — в общем списке комнат, текст — в закрытом превью
+function lastUpdate(rid, text) {
+  const u = { ["rooms/" + rid + "/last"]: { from: me.uid, ts: SV }, ["previews/" + rid]: { text, from: me.uid, ts: SV } };
+  if (rid === GENERAL) { u["rooms/" + GENERAL + "/title"] = "Общий чат"; u["rooms/" + GENERAL + "/type"] = "public"; }
+  return req("PATCH", "", u);
+}
+const prevAsked = {};
+function syncPreviews() {
+  roomIds().forEach((rid) => {
+    const last = (S.rooms[rid] || {}).last || {}; if (!last.ts || prevAsked[rid] >= last.ts) return;
+    prevAsked[rid] = last.ts;
+    req("GET", "/previews/" + rid).then((p) => { S.previews[rid] = p || {}; renderList(); }).catch(() => {});
+  });
 }
 $("#attach").onclick = () => $("#file").click();
 $("#file").onchange = async (e) => {
@@ -1506,8 +1555,8 @@ function showOnboard(linking) {
   const h = $("#onTitle"); h.innerHTML = "";
   const l1 = document.createElement("span"), l2 = document.createElement("span"); l2.className = "serif";
   h.append(l1, l2);
-  words(l1, linking ? "Привяжите почту," : "Поболтаем,", .06, .12); words(l2, linking ? "чтобы входить откуда угодно." : "пока никто не работает.", .05, .36);
-  $("#auHint").textContent = linking ? "Ваши чаты останутся с вами. Пришлём код из шести цифр." : "Войдите по почте — пришлём код из шести цифр.";
+  words(l1, linking ? "Мы усилили защиту," : "Поболтаем,", .06, .12); words(l2, linking ? "войдите по почте ещё раз." : "пока никто не работает.", .05, .36);
+  $("#auHint").textContent = linking ? "Теперь переписку видят только её участники. Пришлём код из шести цифр." : "Войдите по почте — пришлём код из шести цифр.";
   goStep("email");
   const em = $("#auEmail"); em.oninput = () => { $("#auSend").disabled = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim()); $("#auErr1").hidden = true; };
   em.oninput();
@@ -1562,9 +1611,10 @@ async function verifyCode() {
   if (code.length !== 6 || verifying) return; verifying = true;
   $("#auVerify").disabled = true; $("#auVerify").classList.add("busy");
   try {
-    const r = await authCall({ action: "verify", email: auth.email, code, uid: me && me.uid });
+    const r = await authCall({ action: "verify", email: auth.email, code });
     if (!r.ok) { authError("#auErr2", AUTH_ERR[r.err] || AUTH_ERR.server); $("#otp").querySelectorAll("input").forEach((i) => (i.value = "")); $("#otp input").focus(); return; }
-    auth.uid = r.uid;
+    auth.uid = r.uid; lost = false;
+    saveSess({ uid: r.uid, idToken: r.idToken, refreshToken: r.refreshToken, exp: Date.now() + Number(r.expiresIn || 3600) * 1000 });
     let prof = null; try { prof = await req("GET", "/users/" + r.uid); } catch (e) {}
     if (prof && prof.name) {
       me = { uid: r.uid, email: auth.email, name: prof.name, color: prof.color || COLORS[0], emoji: prof.emoji || "", ava: prof.ava || "", bio: prof.bio || "" };
@@ -1586,7 +1636,7 @@ function start() {
   renderMe(); heartbeat(); setInterval(heartbeat, 25000);
   setInterval(() => { renderList(); if (S.room) renderHeader(false); }, 15000);
   stream("/users", "", (t) => { S.users = t || {}; renderList(); if (S.room) { renderHeader(false); renderMsgs(); } });
-  stream("/rooms", "", (t) => { S.rooms = t || {}; renderList(); if (S.room) renderHeader(false); });
+  stream("/rooms", "", (t) => { S.rooms = t || {}; renderList(); syncPreviews(); if (S.room) renderHeader(false); });
   stream("/reads", "", (t) => { S.reads = t || {}; renderList(); if (S.room) renderMsgs(); });
   stream("/typing", "", (t) => { S.typing = t || {}; renderList(); if (S.room) renderHeader(false); });
   setInterval(() => { if (Object.keys(S.typing).length) { renderList(); if (S.room) renderHeader(false); } }, 3000);
@@ -1594,9 +1644,9 @@ function start() {
   openRoom(want && !isMobile() ? want : GENERAL);
   if (isMobile()) $("#app").classList.remove("in-chat");
   // убираем «печатает» у себя, если ушли со страницы
-  addEventListener("pagehide", () => { if (S.room) navigator.sendBeacon && fetch(DB + "/typing/" + S.room + "/" + me.uid + ".json", { method: "DELETE", keepalive: true }); });
+  addEventListener("pagehide", () => { if (S.room && SESS) fetch(withAuth(DB + "/typing/" + S.room + "/" + me.uid + ".json", SESS.idToken), { method: "DELETE", keepalive: true }).catch(() => {}); });
 }
-if (me && me.uid && me.name && me.email) start(); else showOnboard(!!(me && me.uid && me.name));
+if (me && me.uid && me.name && SESS && SESS.uid === me.uid) start(); else showOnboard(!!(me && me.name));
 })();
 </script>
 </body>

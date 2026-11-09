@@ -629,7 +629,7 @@ async function token() {
 let lost = false;
 function authLost() {
   if (lost) return; lost = true;
-  saveSess(null); toast("Сессия закончилась. Войдите по почте ещё раз");
+  saveSess(null); toast("Нужно войти по почте ещё раз");
   setTimeout(() => location.reload(), 1600);
 }
 const withAuth = (url, t) => url + (t ? (url.includes("?") ? "&" : "?") + "auth=" + encodeURIComponent(t) : "");
@@ -638,7 +638,7 @@ const withAuth = (url, t) => url + (t ? (url.includes("?") ? "&" : "?") + "auth=
 async function req(method, path, body) {
   const t = await token();
   const r = await fetch(withAuth(DB + path + ".json", t), { method, body: body === undefined ? undefined : JSON.stringify(body) });
-  if (r.status === 401) { const e = new Error("denied"); e.denied = true; throw e; }
+  if (r.status === 401) { const e = new Error("denied"); e.denied = true; if (!t) authLost(); throw e; }
   if (!r.ok) throw new Error("db " + r.status);
   return r.json();
 }
@@ -652,7 +652,7 @@ function setAt(tree, path, val) {
   if (val == null) delete o[k]; else o[k] = val;
   return tree;
 }
-function stream(path, query, onData) {
+function stream(path, query, onData, onDenied) {
   let tree = {}, es = null, closed = false, renewT = 0;
   const open = async () => {
     if (closed) return;
@@ -665,12 +665,14 @@ function stream(path, query, onData) {
     es.addEventListener("auth_revoked", () => { es.close(); open(); });
     es.addEventListener("put", (e) => { const d = JSON.parse(e.data); tree = setAt(tree, d.path, d.data); onData(tree, d); });
     es.addEventListener("patch", (e) => { const d = JSON.parse(e.data); for (const k in d.data) tree = setAt(tree, d.path.replace(/\/$/, "") + "/" + k, d.data[k]); onData(tree, d); });
-    es.addEventListener("cancel", () => { netError(); });
+    // Отказ в доступе: база не пустила по правилам
+    es.addEventListener("cancel", () => { closed = true; es.close(); (onDenied || deniedToast)(); });
     es.onerror = () => { if (es.readyState === 2 && !closed) setTimeout(open, 3000); };
   };
   open();
   return () => { closed = true; clearTimeout(renewT); es && es.close(); };
 }
+function deniedToast() { toast("Нет доступа к этому чату"); }
 let netShown = false;
 function netError() { if (!netShown) { netShown = true; toast("Нет связи с базой. Проверьте интернет."); setTimeout(() => (netShown = false), 8000); } }
 
@@ -1613,6 +1615,7 @@ async function verifyCode() {
   try {
     const r = await authCall({ action: "verify", email: auth.email, code });
     if (!r.ok) { authError("#auErr2", AUTH_ERR[r.err] || AUTH_ERR.server); $("#otp").querySelectorAll("input").forEach((i) => (i.value = "")); $("#otp input").focus(); return; }
+    if (!r.idToken) { authError("#auErr2", "Сервер входа ещё не обновлён. Попросите администратора развернуть новую версию скрипта"); return; }
     auth.uid = r.uid; lost = false;
     saveSess({ uid: r.uid, idToken: r.idToken, refreshToken: r.refreshToken, exp: Date.now() + Number(r.expiresIn || 3600) * 1000 });
     let prof = null; try { prof = await req("GET", "/users/" + r.uid); } catch (e) {}
@@ -1635,7 +1638,7 @@ function start() {
   document.body.classList.remove("locked");
   renderMe(); heartbeat(); setInterval(heartbeat, 25000);
   setInterval(() => { renderList(); if (S.room) renderHeader(false); }, 15000);
-  stream("/users", "", (t) => { S.users = t || {}; renderList(); if (S.room) { renderHeader(false); renderMsgs(); } });
+  stream("/users", "", (t) => { S.users = t || {}; renderList(); if (S.room) { renderHeader(false); renderMsgs(); } }, authLost);
   stream("/rooms", "", (t) => { S.rooms = t || {}; renderList(); syncPreviews(); if (S.room) renderHeader(false); });
   stream("/reads", "", (t) => { S.reads = t || {}; renderList(); if (S.room) renderMsgs(); });
   stream("/typing", "", (t) => { S.typing = t || {}; renderList(); if (S.room) renderHeader(false); });
@@ -1646,7 +1649,7 @@ function start() {
   // убираем «печатает» у себя, если ушли со страницы
   addEventListener("pagehide", () => { if (S.room && SESS) fetch(withAuth(DB + "/typing/" + S.room + "/" + me.uid + ".json", SESS.idToken), { method: "DELETE", keepalive: true }).catch(() => {}); });
 }
-if (me && me.uid && me.name && SESS && SESS.uid === me.uid) start(); else showOnboard(!!(me && me.name));
+if (me && me.uid && me.name && SESS && SESS.idToken && SESS.uid === me.uid) start(); else showOnboard(!!(me && me.name));
 })();
 </script>
 </body>

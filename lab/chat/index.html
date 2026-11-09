@@ -462,6 +462,69 @@ textarea.bio:focus { border-color: rgba(26,33,51,.3); background: #fff; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ===== Телефоны ===== */
+html { -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior: none; }
+.msgs, .list, .pk-body, .pick { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+button, .row, .rx, .chip, .wtile { touch-action: manipulation; }
+.m.swiping { transition: none !important; }
+.m .swipe-ico { position: absolute; top: 50%; width: 30px; height: 30px; margin-top: -15px; border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: var(--lift); display: grid; place-items: center; opacity: 0; transform: scale(.4); pointer-events: none; }
+.m .swipe-ico svg { width: 16px; height: 16px; color: var(--ink); }
+.m:not(.mine) .swipe-ico { right: -40px; } .m.mine .swipe-ico { right: -40px; }
+@media (max-width: 760px) {
+  /* Высота по видимой части экрана: клавиатура не перекрывает поле ввода */
+  #app { height: var(--app-h, 100dvh); }
+  /* Поля от 16px — iPhone не приближает страницу при вводе */
+  .input-row textarea, .search input, .field input, textarea.bio, .otp input { font-size: 16px; }
+  /* Лёгкая графика: без тяжёлого размытия и бесконечных анимаций фона */
+  .bokeh i { animation: none; filter: blur(40px); }
+  #app.glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: #f6f7f9; }
+  .conv { -webkit-backdrop-filter: none; backdrop-filter: none; background: #f7f8fa; }
+  .conv.walled .conv-top { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255,255,255,.92); }
+  .conv.dark.walled .conv-top { background: rgba(20,25,38,.94); }
+  .day { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  #app.in-chat .side { filter: none; opacity: .5; }
+  .side-top { padding: calc(14px + var(--sat)) 14px 8px; }
+  .search { margin: 4px 14px 8px; } .tabs { margin: 2px 14px 6px; }
+  .list { padding: 4px 6px calc(14px + var(--sab)); }
+  .row { padding: 9px 8px; border-radius: 16px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .send { width: 42px; height: 42px; }
+  .input-row { border-radius: 22px; }
+  .m { max-width: 86%; }
+  .b { padding: 8px 12px 6px; }
+  .reply-bar { margin: 0 2px 8px; }
+  /* Карточки — шторками снизу */
+  .overlay:not(#onboard) { align-items: end; padding: 0; }
+  .overlay:not(#onboard) .card { width: 100%; max-height: 92dvh; border-radius: 26px 26px 0 0; padding: 14px 20px calc(18px + var(--sab)); animation: sheetIn .45s var(--ease) both; }
+  .overlay:not(#onboard) .card.leaving { animation: sheetOut .32s var(--ease) both; }
+  .overlay:not(#onboard) .card::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 3px; background: rgba(26,33,51,.18); margin: 0 auto 14px; }
+  #onboard { padding: 14px; align-items: center; }
+  #onboard .card { padding: 22px 20px; }
+  .otp { gap: 6px; } .otp input { height: 54px; font-size: 24px; border-radius: 14px; }
+  .wgrid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .wtile span { font-size: 11px; left: 5px; bottom: 5px; padding: 2px 7px; }
+  /* Меню сообщения — шторкой снизу */
+  .menu { left: 8px !important; right: 8px; top: auto !important; bottom: calc(8px + var(--sab)); min-width: 0; border-radius: 22px; padding: 8px; animation: sheetIn .38s var(--ease) both; }
+  .menu.out { animation: sheetOut .25s var(--ease) both; }
+  .menu .emo { justify-content: space-between; }
+  .menu .emo button { width: 44px; height: 44px; font-size: 24px; }
+  .menu .it { height: 48px; font-size: 16px; }
+  .fxmenu { left: 8px; right: 8px; width: auto; }
+  .fxmenu button { height: 48px; font-size: 16px; }
+  .pk-grid button { font-size: 26px; }
+  .picker { bottom: calc(100% + 2px); background: #fff; }
+  .pk-body { background: #fff; }
+}
+@keyframes sheetIn { from { transform: translateY(105%); } }
+@keyframes sheetOut { to { transform: translateY(105%); } }
+@media (max-width: 380px) {
+  .m { max-width: 90%; }
+  .ava.sm { width: 28px; height: 28px; } .m .ava-slot { width: 28px; }
+  .card h2 { font-size: 30px; } .card h2 .serif { font-size: 34px; }
+  .msgs { padding: 12px 8px 6px; }
+}
 </style>
 </head>
 <body class="locked">
@@ -901,14 +964,14 @@ async function openDM(u) {
 let stopMsgs = null, stopTyping = null, nodes = new Map(), firstPaint = true, newBelow = 0;
 let switchT = 0;
 function openRoom(rid) {
-  if (S.room === rid) { if (isMobile()) $("#app").classList.add("in-chat"); return; }
+  if (S.room === rid) { if (isMobile()) { $("#app").classList.add("in-chat"); pushChatState(); } return; }
   const old = Array.from($("#msgsInner").children).slice(-16);
   const hadRoom = !!S.room && old.length && !REDUCE && !isMobile();
   S.room = rid; S.msgs = {}; S.pending = {}; S.reply = null; S.edit = null; S.msgsReady = false;
   stopMsgs && stopMsgs(); stopMsgs = null;
   clearTimeout(switchT);
   renderHeader(true); renderList(); togglePicker(false);
-  if (isMobile()) $("#app").classList.add("in-chat");
+  if (isMobile()) { $("#app").classList.add("in-chat"); pushChatState(); }
   if (hadRoom) {
     old.forEach((n, i) => n.animate([{ opacity: 1, transform: "none", filter: "blur(0)" }, { opacity: 0, transform: "translateY(18px)", filter: "blur(8px)" }], { duration: 200, delay: (old.length - 1 - i) * 8, easing: "ease-in", fill: "forwards" }));
     switchT = setTimeout(() => enterRoom(rid), 210);
@@ -924,9 +987,48 @@ function enterRoom(rid) {
   const q = "?orderBy=" + encodeURIComponent('"$key"') + "&limitToLast=300";
   stopMsgs = stream("/msgs/" + rid, q, (tree) => { if (S.room !== rid) return; S.msgs = tree || {}; S.msgsReady = true; renderMsgs(); markRead(); });
   if (!isMobile()) setTimeout(() => $("#text").focus(), 50);
-  history.replaceState(null, "", "#" + rid);
+  history.replaceState(history.state, "", "#" + rid);
 }
-$("#back").onclick = () => { $("#app").classList.remove("in-chat"); };
+function closeChatMobile() { $("#app").classList.remove("in-chat"); ta.blur(); togglePicker(false); }
+$("#back").onclick = () => { if (history.state && history.state.chat) history.back(); else closeChatMobile(); };
+// Системная кнопка «Назад» на телефоне возвращает к списку чатов
+addEventListener("popstate", () => { if (isMobile() && $("#app").classList.contains("in-chat")) closeChatMobile(); });
+function pushChatState() { if (isMobile() && !S.booting && !(history.state && history.state.chat)) history.pushState({ chat: 1 }, "", location.href); }
+// Видимая высота экрана (без клавиатуры)
+(function () {
+  const vv = window.visualViewport; if (!vv) return;
+  const fit = () => {
+    document.documentElement.style.setProperty("--app-h", vv.height + "px");
+    if (isMobile()) { window.scrollTo(0, 0); if (S.room && nearBottom()) box.scrollTop = box.scrollHeight; }
+  };
+  vv.addEventListener("resize", fit); vv.addEventListener("scroll", () => isMobile() && window.scrollTo(0, 0)); fit();
+})();
+// Свайп сообщения влево — ответить (как в Телеграме)
+(function () {
+  let el = null, sx = 0, sy = 0, dx = 0, lock = null;
+  $("#msgsInner").addEventListener("touchstart", (e) => {
+    const m = e.target.closest(".m"); if (!m || !isMobile() || (S.msgs[m.dataset.k] || {}).deleted || !S.msgs[m.dataset.k]) return;
+    el = m; sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; lock = null;
+  }, { passive: true });
+  $("#msgsInner").addEventListener("touchmove", (e) => {
+    if (!el) return; const x = e.touches[0].clientX - sx, y = e.touches[0].clientY - sy;
+    if (lock === null && (Math.abs(x) > 8 || Math.abs(y) > 8)) lock = Math.abs(x) > Math.abs(y) && x < 0 ? "x" : "y";
+    if (lock !== "x") return;
+    clearTimeout(pressT);
+    dx = Math.max(-90, Math.min(0, x)); el.classList.add("swiping"); el.style.transform = `translateX(${dx}px)`;
+    let ico = el.querySelector(".swipe-ico"); if (!ico) { ico = document.createElement("span"); ico.className = "swipe-ico"; ico.innerHTML = '<svg><use href="#i-reply"/></svg>'; el.appendChild(ico); }
+    const k = Math.min(1, -dx / 60); ico.style.opacity = k; ico.style.transform = `scale(${.4 + .6 * k})`;
+    if (dx <= -60 && !el._buzz) { el._buzz = 1; navigator.vibrate && navigator.vibrate(8); }
+  }, { passive: true });
+  const end = () => {
+    if (!el) return; const m = el, go = dx <= -60; el = null;
+    m.classList.remove("swiping"); m._buzz = 0;
+    m.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 300, easing: EASE });
+    m.style.transform = ""; const ico = m.querySelector(".swipe-ico"); ico && ico.remove();
+    if (go) startReply(m.dataset.k);
+  };
+  $("#msgsInner").addEventListener("touchend", end); $("#msgsInner").addEventListener("touchcancel", end);
+})();
 // Свайп от левого края — назад к списку (телефон)
 (function () {
   const conv = $("#conv"); let sx = 0, dx = 0, drag = false;
@@ -1056,7 +1158,7 @@ $("#msgsInner").addEventListener("click", (e) => {
   if (e.target.closest(".txt.spoiler")) { el._open = true; el._justOpened = true; el._sig = null; renderMsgs(); sparkle(el); return; }
   if (e.target.closest(".photo")) { openViewer(e.target); return; }
   const act = e.target.closest("[data-act]"); if (act) { if (act.dataset.act === "reply") startReply(k); else showMenu(el, act.getBoundingClientRect()); return; }
-  if (isMobile() && m && !m.deleted && !e.target.closest("a")) showMenu(el, el.querySelector(".b").getBoundingClientRect());
+
 });
 $("#msgsInner").addEventListener("contextmenu", (e) => { const el = e.target.closest(".m"); if (!el || (S.msgs[el.dataset.k] || {}).deleted) return; e.preventDefault(); showMenu(el, { left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }); });
 function zoomFrames(a, b) { return [{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px) scale(${a.width / b.width})`, borderRadius: "28px" }, { transform: "none", borderRadius: "20px" }]; }
@@ -1802,7 +1904,7 @@ function start() {
   stream("/typing", "", (t) => { S.typing = t || {}; renderList(); if (S.room) renderHeader(false); });
   setInterval(() => { if (Object.keys(S.typing).length) { renderList(); if (S.room) renderHeader(false); } }, 3000);
   const want = location.hash.slice(1);
-  openRoom(want && !isMobile() ? want : GENERAL);
+  S.booting = true; openRoom(want && !isMobile() ? want : GENERAL); S.booting = false;
   if (isMobile()) $("#app").classList.remove("in-chat");
   // убираем «печатает» у себя, если ушли со страницы
   addEventListener("pagehide", () => { if (S.room && SESS) fetch(withAuth(DB + "/typing/" + S.room + "/" + me.uid + ".json", SESS.idToken), { method: "DELETE", keepalive: true }).catch(() => {}); });

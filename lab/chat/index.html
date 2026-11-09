@@ -415,6 +415,27 @@ textarea.bio:focus { border-color: rgba(26,33,51,.3); background: #fff; }
 .check { display: flex; align-items: center; gap: 10px; font-size: 14.5px; margin-bottom: 4px; cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--ink); }
 
+/* ===== Эффекты отправки ===== */
+.fxmenu { position: absolute; z-index: 7; right: 16px; bottom: calc(100% - 4px); width: 250px; padding: 8px; border-radius: 20px; background: rgba(255,255,255,.95); box-shadow: 0 2px 4px rgba(26,33,51,.04), 0 30px 70px -24px rgba(26,33,51,.35); transform-origin: 90% 100%; animation: pickIn .32s var(--ease) both; }
+.fxmenu.glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.fxmenu.out { animation: pickOut .2s var(--ease) both; }
+.fx-h { font-size: 12.5px; color: var(--grey); padding: 4px 8px 6px; }
+.fxmenu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 42px; padding: 0 10px; border-radius: 12px; text-align: left; font-weight: 500; animation: rise .3s var(--ease) both; transition: background .15s; }
+.fxmenu button:hover { background: rgba(26,33,51,.06); }
+.fxmenu button span { font-size: 21px; width: 26px; text-align: center; transition: transform .25s var(--ease); }
+.fxmenu button:hover span { transform: scale(1.25) rotate(-8deg); }
+.send.holding { transform: scale(.88); }
+.fx-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 18; pointer-events: none; }
+.fx-spot { position: fixed; inset: 0; z-index: 17; pointer-events: none; }
+.fxi { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 2px; font-size: 12px; line-height: 1; border-radius: 6px; transition: transform .25s var(--ease); cursor: pointer; }
+.fxi:hover { transform: scale(1.3) rotate(-10deg); }
+.b .txt.spoiler { color: transparent !important; cursor: pointer; border-radius: 6px; background-image: radial-gradient(circle, rgba(26,33,51,.75) .9px, transparent 1.4px), radial-gradient(circle, rgba(26,33,51,.45) .7px, transparent 1.2px); background-size: 7px 7px, 11px 9px; animation: shimmer 1.4s linear infinite; }
+.m.mine .b .txt.spoiler { background-image: radial-gradient(circle, rgba(255,255,255,.9) .9px, transparent 1.4px), radial-gradient(circle, rgba(255,255,255,.55) .7px, transparent 1.2px); }
+.b .txt.spoiler a { color: transparent; text-decoration: none; }
+@keyframes shimmer { to { background-position: 7px -7px, -11px 9px; } }
+.b .txt.reveal { animation: reveal .6s var(--ease) both; }
+@keyframes reveal { from { filter: blur(8px); opacity: .2; letter-spacing: .12em; } }
+
 @media (max-width: 760px) {
   .picker { left: 8px; right: 8px; width: auto; height: 340px; }
   .b.sticker .stk { width: 140px; height: 140px; }
@@ -500,6 +521,14 @@ textarea.bio:focus { border-color: rgba(26,33,51,.3); background: #fff; }
     <div class="msgs" id="msgs"><div class="msgs-inner" id="msgsInner"></div></div>
     <button class="down" id="down" aria-label="Вниз"><svg><use href="#i-down"/></svg></button>
     <div class="composer" id="composer">
+      <div class="fxmenu glass" id="fxMenu" hidden role="menu" aria-label="Эффекты">
+        <div class="fx-h">Отправить с эффектом</div>
+        <button type="button" data-send-fx="confetti"><span>🎉</span>Конфетти</button>
+        <button type="button" data-send-fx="hearts"><span>💖</span>Сердечки</button>
+        <button type="button" data-send-fx="quake"><span>💥</span>Землетрясение</button>
+        <button type="button" data-send-fx="spot"><span>🔦</span>Прожектор</button>
+        <button type="button" data-send-fx="spoiler"><span>🫣</span>Невидимые чернила</button>
+      </div>
       <div class="picker glass" id="picker" hidden>
         <div class="pk-tabs"><button type="button" data-pk="emoji" aria-selected="true">Эмодзи</button><button type="button" data-pk="stickers" aria-selected="false">Стикеры</button></div>
         <div class="pk-body" id="pkBody"></div>
@@ -511,7 +540,7 @@ textarea.bio:focus { border-color: rgba(26,33,51,.3); background: #fff; }
         <input type="file" id="file" accept="image/*" hidden>
         <textarea id="text" rows="1" placeholder="Сообщение" aria-label="Сообщение"></textarea>
         <button class="icon-btn" id="emoBtn" title="Эмодзи и стикеры" aria-label="Эмодзи и стикеры"><svg><use href="#i-smile"/></svg></button>
-        <button class="send" id="send" disabled aria-label="Отправить"><svg><use href="#i-send"/></svg></button>
+        <button class="send" id="send" disabled aria-label="Отправить" title="Удерживайте — эффекты"><svg><use href="#i-send"/></svg></button>
       </div>
     </div>
   </section>
@@ -945,7 +974,7 @@ function renderMsgs() {
   const ALL = Object.assign({}, S.msgs); for (const c in S.pending) ALL["~" + c] = S.pending[c];
   const keys = Object.keys(ALL).sort();
   const atBottom = firstPaint || S.forceBottom || nearBottom(); S.forceBottom = false;
-  const wasFirst = firstPaint;
+  const wasFirst = firstPaint; const fxQueue = [];
   const want = []; let prev = null, prevDay = null, added = 0;
   if (!keys.length) {
     const e = document.createElement("div"); e.className = "empty-conv"; e.dataset.k = "empty";
@@ -962,7 +991,7 @@ function renderMsgs() {
     const last = !next || next.from !== m.from || (next.ts || 0) - ts > 180000 || dayKey(next.ts || 0) !== prevDay || next.sys;
     const sig = JSON.stringify(m) + first + last + readSig(m) + ((S.users[m.from] || {}).name || "") + ((S.users[m.from] || {}).color || "");
     let el = nodes.get(k);
-    if (!el) { el = document.createElement("div"); el.dataset.k = k; nodes.set(k, el); el.addEventListener("animationend", (ev) => { if (ev.target === el) el.classList.remove("enter"); }); if (!firstPaint) { el.classList.add("enter"); if (!atBottom && m.from !== me.uid) added++; } }
+    if (!el) { el = document.createElement("div"); el.dataset.k = k; nodes.set(k, el); el.addEventListener("animationend", (ev) => { if (ev.target === el) el.classList.remove("enter"); }); if (!firstPaint) { el.classList.add("enter"); if (!atBottom && m.from !== me.uid) added++; if (m.fx && m.from !== me.uid) fxQueue.push(el); } }
     if (el._sig !== sig) { el._sig = sig; paintMsg(el, k, m, first, last); }
     want.push(el); prev = m;
   });
@@ -974,6 +1003,7 @@ function renderMsgs() {
     const vis = want.slice(-16);
     vis.forEach((n, i) => n.animate([{ opacity: 0, transform: "translateY(18px)", filter: "blur(10px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }], { duration: 420, delay: 40 + (vis.length - 1 - i) * 28, easing: EASE, fill: "backwards" }));
   }
+  fxQueue.forEach((n) => setTimeout(() => { const mm = ALL[n.dataset.k] || S.msgs[n.dataset.k]; mm && playFx(n, mm.fx); }, 380));
   updateDown(); firstPaint = false;
 }
 function readSig(m) {
@@ -996,11 +1026,13 @@ function paintMsg(el, k, m, first, last) {
     if (m.reply) html += `<button class="quote" data-jump="${esc(m.reply.mid)}"><b>${esc(m.reply.name)}</b><span>${esc(m.reply.text)}</span></button>`;
     if (m.img) html += `<img class="photo" src="${esc(m.img)}" alt="Фото" loading="lazy">`;
     if (m.sticker) html += `<img class="stk" src="${STK.url(m.sticker)}" alt="Стикер">`;
-    if (m.text) html += `<span class="txt${txtChanged ? " swap" : ""}">${linkify(m.text)}</span>`;
+    if (m.text) html += `<span class="txt${txtChanged ? " swap" : ""}${m.fx === "spoiler" && !el._open ? " spoiler" : ""}${el._justOpened ? " reveal" : ""}"${m.fx === "spoiler" && !el._open ? ' title="Нажмите, чтобы прочитать"' : ""}>${linkify(m.text)}</span>`;
+    el._justOpened = false;
   }
   const rs = readSig(m), prevRs = el._rs; el._rs = rs;
   const ck = rs === "p" ? CLOCK : rs ? chk(rs === "r", prevRs === "p" ? "draw" : prevRs === "s" && rs === "r" ? "draw2" : "") : "";
-  html += `<span class="foot">${m.edited && !m.deleted ? "изм. " : ""}${fmtTime(m.ts || now())}${ck}</span></div>`;
+  const fxIcon = m.fx && m.fx !== "spoiler" && FX[m.fx] && !m.deleted ? `<button class="fxi" data-fx="${m.fx}" title="Повторить эффект «${FX[m.fx].n}»">${FX[m.fx].e}</button>` : "";
+  html += `<span class="foot">${fxIcon}${m.edited && !m.deleted ? "изм. " : ""}${fmtTime(m.ts || now())}${ck}</span></div>`;
   const rx = m.react || {}, rk = Object.keys(REACTS).filter((x) => rx[x] && Object.keys(rx[x]).length);
   const prevRx = el._rx; el._rx = new Set(rk);
   if (rk.length && !m.deleted) html += `<div class="reacts">${rk.map((x) => `<button class="rx${rx[x][me.uid] ? " me" : ""}${prevRx && !prevRx.has(x) ? " pop" : ""}" data-rx="${x}" title="${esc(Object.keys(rx[x]).map((uid) => (S.users[uid] || {}).name || "?").join(", "))}">${REACTS[x]} ${Object.keys(rx[x]).length}</button>`).join("")}</div>`;
@@ -1020,6 +1052,8 @@ $("#msgsInner").addEventListener("click", (e) => {
   const rxb = e.target.closest("[data-rx]"); if (rxb) { toggleReact(k, rxb.dataset.rx); return; }
   const jump = e.target.closest("[data-jump]"); if (jump) { jumpTo(jump.dataset.jump); return; }
   const av = e.target.closest(".ava-slot .ava[data-uid]"); if (av) { openProfile(av.dataset.uid); return; }
+  const fxb = e.target.closest("[data-fx]"); if (fxb) { playFx(el, fxb.dataset.fx); return; }
+  if (e.target.closest(".txt.spoiler")) { el._open = true; el._justOpened = true; el._sig = null; renderMsgs(); sparkle(el); return; }
   if (e.target.closest(".photo")) { openViewer(e.target); return; }
   const act = e.target.closest("[data-act]"); if (act) { if (act.dataset.act === "reply") startReply(k); else showMenu(el, act.getBoundingClientRect()); return; }
   if (isMobile() && m && !m.deleted && !e.target.closest("a")) showMenu(el, el.querySelector(".b").getBoundingClientRect());
@@ -1123,8 +1157,24 @@ ta.addEventListener("input", () => {
   if (ta.value.trim() && Date.now() - typingSent > 2500 && S.room) { typingSent = Date.now(); req("PUT", "/typing/" + S.room + "/" + me.uid, SV).catch(() => {}); }
 });
 ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !isMobile()) { e.preventDefault(); send(); } });
-$("#send").onclick = send;
-async function send(img) {
+// Нажатие — отправить; удержание или правая кнопка — меню эффектов
+let fxHold = 0, fxOpened = false;
+const sendBtn = $("#send");
+sendBtn.addEventListener("pointerdown", (e) => {
+  if (sendBtn.disabled || e.button !== 0) return; fxOpened = false; sendBtn.classList.add("holding");
+  fxHold = setTimeout(() => { fxOpened = true; sendBtn.classList.remove("holding"); toggleFx(true); if (navigator.vibrate) navigator.vibrate(12); }, 420);
+});
+["pointerup", "pointerleave", "pointercancel"].forEach((ev) => sendBtn.addEventListener(ev, () => { clearTimeout(fxHold); sendBtn.classList.remove("holding"); }));
+sendBtn.addEventListener("contextmenu", (e) => { e.preventDefault(); if (!sendBtn.disabled) { fxOpened = true; toggleFx(true); } });
+sendBtn.onclick = () => { if (fxOpened) { fxOpened = false; return; } send(); };
+function toggleFx(open) {
+  const m = $("#fxMenu");
+  if (open) { m.hidden = false; m.classList.remove("out"); m.querySelectorAll("button").forEach((b, i) => (b.style.animationDelay = 30 + i * 35 + "ms")); togglePicker(false); }
+  else if (!m.hidden) { m.classList.add("out"); setTimeout(() => { m.hidden = true; m.classList.remove("out"); }, 200); }
+}
+$("#fxMenu").addEventListener("click", (e) => { const b = e.target.closest("[data-send-fx]"); if (!b) return; e.stopPropagation(); toggleFx(false); send(undefined, b.dataset.sendFx); });
+document.addEventListener("pointerdown", (e) => { if (!$("#fxMenu").hidden && !e.target.closest("#fxMenu") && !e.target.closest("#send")) toggleFx(false); });
+async function send(img, fx) {
   const text = ta.value.trim(), rid = S.room; if ((!text && !img) || !rid) return;
   if (S.edit) {
     const k = S.edit; cancelReply(); ta.value = ""; autosize(); updateSend();
@@ -1134,6 +1184,7 @@ async function send(img) {
   }
   const isImg = typeof img === "string", cid = Math.random().toString(36).slice(2, 10);
   const msg = { from: me.uid, text: isImg ? "" : text, ts: SV, cid };
+  if (fx && !isImg) msg.fx = fx;
   if (isImg) msg.img = img;
   if (S.reply) msg.reply = S.reply;
   const taRect = ta.getBoundingClientRect(), rowRect = $(".input-row").getBoundingClientRect();
@@ -1141,15 +1192,16 @@ async function send(img) {
   S.pending[cid] = Object.assign({}, msg, { ts: now(), pending: true });
   S.forceBottom = true; renderMsgs();
   const el = nodes.get("~" + cid);
-  if (el && !isImg && !REDUCE) flowIn(el, taRect, rowRect, text);
+  if (el && !isImg && !REDUCE) flowIn(el, taRect, rowRect, text, () => fx && playFx(el, fx));
+  else if (el && fx) setTimeout(() => playFx(el, fx), 250);
   typingSent = 0; req("DELETE", "/typing/" + rid + "/" + me.uid).catch(() => {});
   try {
     await req("POST", "/msgs/" + rid, msg);
-    await lastUpdate(rid, msg.img ? "Фото" : msg.text);
+    await lastUpdate(rid, msg.img ? "Фото" : msg.fx === "spoiler" ? "Скрытое сообщение" : msg.text);
   } catch (e) { netError(); delete S.pending[cid]; if (S.room === rid) renderMsgs(); if (msg.text) { ta.value = msg.text; autosize(); updateSend(); } }
 }
 // Капля: текст отрывается от поля ввода, тянется жидкой ниткой и становится пузырём
-function flowIn(el, taRect, rowRect, text) {
+function flowIn(el, taRect, rowRect, text, done) {
   const b = el.querySelector(".b"); if (!b) return;
   el.classList.remove("enter"); el.style.visibility = "hidden";
   const end = b.getBoundingClientRect();
@@ -1185,7 +1237,7 @@ function flowIn(el, taRect, rowRect, text) {
     gt.style.transform = `translate(${x + (w - E0.w) / 2}px,${y + h - gh - (E0.h - gh) * .5 * ex}px)`;
     gt.style.color = mix(INK, TX, Math.min(1, p * 1.7));
     if (p < 1) requestAnimationFrame(frame);
-    else { el.style.visibility = ""; el.classList.add("settle"); layer.remove(); setTimeout(() => el.classList.remove("settle"), 450); }
+    else { el.style.visibility = ""; el.classList.add("settle"); layer.remove(); setTimeout(() => el.classList.remove("settle"), 450); done && done(); }
   }
   requestAnimationFrame(frame);
 }
@@ -1241,6 +1293,65 @@ $("#file").onchange = async (e) => {
 // Вставка картинки из буфера
 ta.addEventListener("paste", (e) => { const it = Array.from(e.clipboardData.items || []).find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); const f = it.getAsFile(); const dt = new DataTransfer(); dt.items.add(f); $("#file").files = dt.files; $("#file").onchange({ target: $("#file") }); } });
 
+/* ===== Эффекты ===== */
+const FX = { confetti: { e: "🎉", n: "Конфетти" }, hearts: { e: "💖", n: "Сердечки" }, quake: { e: "💥", n: "Землетрясение" }, spot: { e: "🔦", n: "Прожектор" }, spoiler: { e: "🫣", n: "Невидимые чернила" } };
+function playFx(el, fx) {
+  if (REDUCE || !el || !el.isConnected || !FX[fx]) return;
+  const b = el.querySelector(".b"); if (!b) return;
+  const r = b.getBoundingClientRect();
+  if (fx === "confetti" || fx === "hearts") particles(r, fx);
+  if (fx === "quake") {
+    const fr = []; for (let i = 0; i <= 10; i++) { const k = 1 - i / 10, a = 14 * k; fr.push({ transform: i === 10 ? "none" : `translate(${(Math.random() - .5) * 2 * a}px,${(Math.random() - .5) * 2 * a}px) rotate(${(Math.random() - .5) * k * 1.4}deg)` }); }
+    $("#app").animate(fr, { duration: 700, easing: "linear" });
+    b.animate([{ transform: "scale(1.45) rotate(-6deg)", filter: "blur(2px)" }, { transform: "scale(.9) rotate(2deg)", filter: "blur(0)", offset: .35 }, { transform: "scale(1.04)", offset: .7 }, { transform: "none" }], { duration: 650, easing: EASE });
+  }
+  if (fx === "spot") {
+    const o = document.createElement("div"); o.className = "fx-spot";
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = Math.max(r.width, r.height) / 2 + 26;
+    o.style.background = `radial-gradient(ellipse ${r.width / 2 + 60}px ${r.height / 2 + 60}px at ${cx}px ${cy}px, transparent 55%, rgba(10,13,22,.66) 100%)`;
+    document.body.appendChild(o);
+    o.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .75 }, { opacity: 0 }], { duration: 2000, easing: "ease-in-out" }).onfinish = () => o.remove();
+    b.animate([{ transform: "none" }, { transform: "scale(1.08) translateY(-6px)", offset: .25 }, { transform: "scale(1.08) translateY(-6px)", offset: .75 }, { transform: "none" }], { duration: 2000, easing: EASE });
+  }
+  if (fx === "spoiler") sparkle(el);
+}
+function particles(r, kind) {
+  const c = document.createElement("canvas"); c.className = "fx-canvas";
+  const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr; document.body.appendChild(c);
+  const x = c.getContext("2d"); x.scale(dpr, dpr);
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const COLS = ["#FFD21F", "#ff6b8a", "#7c9cff", "#3ccf7a", "#ffb86b", "#b48cff"], HEARTS = ["💖", "❤️", "💕", "💗", "🩷"];
+  const conf = kind.startsWith("confetti"), mini = kind === "confetti-mini", N = mini ? 30 : conf ? 120 : 26, P = [];
+  for (let i = 0; i < N; i++) {
+    const a = -Math.PI / 2 + (Math.random() - .5) * Math.PI * (conf ? 1.4 : .9), v = mini ? 2 + Math.random() * 4 : conf ? 7 + Math.random() * 10 : 1.2 + Math.random() * 2;
+    P.push({ x: cx + (Math.random() - .5) * r.width * .7, y: cy + (Math.random() - .5) * r.height * .5, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: Math.random() * 6, vr: (Math.random() - .5) * .45, s: conf ? 6 + Math.random() * 7 : 18 + Math.random() * 18, c: COLS[i % COLS.length], h: HEARTS[i % HEARTS.length], ph: Math.random() * 6, d: Math.random() * .25 });
+  }
+  const t0 = performance.now(), D = mini ? 1100 : conf ? 2000 : 2400;
+  function f(t) {
+    const k = (t - t0) / D; x.clearRect(0, 0, W, H);
+    for (const p of P) {
+      if (conf) {
+        p.vy += .34; p.vx *= .985; p.vy *= .985; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        x.save(); x.translate(p.x, p.y); x.rotate(p.rot); x.scale(1, Math.cos(p.rot * 2.3));
+        x.globalAlpha = Math.max(0, 1 - Math.max(0, k - .65) / .35); x.fillStyle = p.c; x.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); x.restore();
+      } else {
+        const kk = Math.max(0, k - p.d); if (kk <= 0) continue;
+        p.y += p.vy * -1 - 1.1; p.x += Math.sin(t / 280 + p.ph) * 1.1 + p.vx * .35;
+        const sc = Math.min(1, kk * 6);
+        x.save(); x.globalAlpha = Math.max(0, 1 - kk / (1 - p.d)); x.translate(p.x, p.y); x.scale(sc, sc); x.font = p.s + "px serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(p.h, 0, 0); x.restore();
+      }
+    }
+    if (k < 1) requestAnimationFrame(f); else c.remove();
+  }
+  requestAnimationFrame(f);
+}
+function sparkle(el) {
+  const t = el.querySelector(".txt"); if (!t || REDUCE) return;
+  const r = t.getBoundingClientRect();
+  particles({ left: r.left, top: r.top, width: r.width, height: r.height }, "confetti-mini");
+}
+
 /* ===== Прочитано и присутствие ===== */
 let readT = 0;
 function markRead() {
@@ -1259,7 +1370,54 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { he
 /* ===== Стикеры: два пака, всё нарисовано кодом ===== */
 const STK = (function () {
   const INK = "#1a2133", W = "#fff";
-  const wrap = (body, rot) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><filter id="o" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/><feFlood flood-color="#fff"/><feComposite in2="d" operator="in" result="w"/><feGaussianBlur in="d" stdDeviation="5" result="b"/><feOffset in="b" dy="5" result="bo"/><feFlood flood-color="#1a2133" flood-opacity=".2"/><feComposite in2="bo" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="w"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#o)"${rot ? ` transform="rotate(${rot} 100 100)"` : ""}>${body}</g></svg>`;
+  const CSS = `<style>
+    .a{transform-box:fill-box;transform-origin:50% 50%}
+    .breathe{transform-origin:50% 100%;animation:br 2.6s ease-in-out infinite}
+    @keyframes br{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}
+    .blink{animation:bl 3.8s infinite}
+    @keyframes bl{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+    .wave{transform-origin:20% 90%;animation:wv 1.1s ease-in-out infinite}
+    @keyframes wv{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(16deg)}}
+    .zz{animation:zz 2.4s ease-in infinite}.zz2{animation:zz 2.4s ease-in 1.2s infinite}
+    @keyframes zz{0%{transform:translate(0,8px) scale(.6);opacity:0}25%{opacity:1}100%{transform:translate(10px,-22px) scale(1.1);opacity:0}}
+    .steam{animation:st 2s ease-in-out infinite}.steam2{animation:st 2s ease-in-out .7s infinite}
+    @keyframes st{0%{transform:translateY(6px);opacity:0}40%{opacity:1}100%{transform:translateY(-12px);opacity:0}}
+    .pop{animation:pp 1.6s ease-in-out infinite}
+    @keyframes pp{0%,100%{transform:scale(1)}45%{transform:scale(1.14) rotate(-6deg)}60%{transform:scale(.96)}}
+    .drip{animation:dr 1.4s ease-in infinite}.drip2{animation:dr 1.4s ease-in .45s infinite}
+    @keyframes dr{0%{transform:translateY(-10px) scaleY(.4);opacity:0}25%{opacity:1}100%{transform:translateY(14px) scaleY(1.1);opacity:0}}
+    .jump{transform-origin:50% 100%;animation:jp 1s cubic-bezier(.3,.7,.4,1) infinite}
+    @keyframes jp{0%,100%{transform:translateY(0) scale(1.04,.96)}40%{transform:translateY(-12px) scale(.97,1.04)}}
+    .fall{animation:fl 1.8s linear infinite}.fall2{animation:fl 1.8s linear .6s infinite}.fall3{animation:fl 1.8s linear 1.2s infinite}
+    @keyframes fl{0%{transform:translateY(-14px) rotate(0);opacity:0}15%{opacity:1}100%{transform:translateY(40px) rotate(260deg);opacity:0}}
+    .wig{transform-origin:50% 0%;animation:wg 1.3s ease-in-out infinite}
+    @keyframes wg{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+    .beat{animation:bt 1s ease-in-out infinite}
+    @keyframes bt{0%,100%{transform:scale(1)}15%{transform:scale(1.2)}30%{transform:scale(.95)}45%{transform:scale(1.12)}}
+    .rise{animation:rs 2.2s ease-out infinite}.rise2{animation:rs 2.2s ease-out 1.1s infinite}
+    @keyframes rs{0%{transform:translateY(10px) scale(.5);opacity:0}30%{opacity:1}100%{transform:translateY(-26px) scale(1);opacity:0}}
+    .bob{animation:bb 1.6s ease-in-out infinite}.bob2{animation:bb 1.6s ease-in-out .4s infinite}
+    @keyframes bb{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(8deg)}}
+    .tilt{transform-origin:50% 90%;animation:tl 2.4s ease-in-out infinite}
+    @keyframes tl{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+    .shake{animation:sh .5s linear infinite}
+    @keyframes sh{0%,100%{transform:translate(0,0)}25%{transform:translate(-2px,1px)}50%{transform:translate(2px,-1px)}75%{transform:translate(-1px,-1px)}}
+    .spin{animation:sp 3s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .squish{transform-origin:50% 100%;animation:sq 3s ease-in-out infinite}
+    @keyframes sq{0%,100%{transform:scale(1,1)}50%{transform:scale(1.06,.9)}}
+    .bubble{transform-origin:0% 50%;animation:bu 2.4s ease-in-out infinite}
+    @keyframes bu{0%,100%{transform:scale(.6)}60%{transform:scale(1.25)}80%{transform:scale(1.3);opacity:1}90%{opacity:0}}
+    .yap{transform-origin:50% 0%;animation:yp .6s ease-in-out infinite}
+    @keyframes yp{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.45)}}
+    .swim{transform-origin:20% 50%;animation:sw .5s ease-in-out infinite}
+    @keyframes sw{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+    @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+  </style>`;
+  // Летающие частицы (конфетти, слёзы, пар) рисуются поверх, без белой обводки
+  const FREE = /^(fall|rise|zz|drip|steam|bubble)/;
+  const g = (cls, body) => FREE.test(cls) ? `<!--F--><g class="a ${cls}">${body}</g><!--/F-->` : `<g class="a ${cls}">${body}</g>`;
+  const wrap = (all, rot) => { const free = (all.match(/<!--F-->[\s\S]*?<!--\/F-->/g) || []).join("").replace(/<!--\/?F-->/g, ""); const body = all.replace(/<!--F-->[\s\S]*?<!--\/F-->/g, ""); return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">${CSS}<defs><filter id="o" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/><feFlood flood-color="#fff"/><feComposite in2="d" operator="in" result="w"/><feGaussianBlur in="d" stdDeviation="5" result="b"/><feOffset in="b" dy="5" result="bo"/><feFlood flood-color="#1a2133" flood-opacity=".2"/><feComposite in2="bo" operator="in" result="s"/><feMerge><feMergeNode in="s"/><feMergeNode in="w"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#o)"${rot ? ` transform="rotate(${rot} 100 100)"` : ""}>${body}</g><g${rot ? ` transform="rotate(${rot} 100 100)"` : ""}>${free}</g></svg>`; };
   const cap = (t, y, size, fill) => `<text x="100" y="${y || 186}" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="${size || 22}" fill="${fill || INK}" stroke="#fff" stroke-width="7" paint-order="stroke" letter-spacing="1">${t}</text>`;
 
   /* --- Пак «Пауза»: пузырь-талисман из логотипа --- */
@@ -1271,15 +1429,15 @@ const STK = (function () {
   const cheeks = `<ellipse cx="66" cy="110" rx="9" ry="5" fill="#ff8fb8" opacity=".85"/><ellipse cx="134" cy="110" rx="9" ry="5" fill="#ff8fb8" opacity=".85"/>`;
   const heart = (x, y, s, c) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 6C0-2 10-4 12 3c2-7 12-5 12 3 0 8-12 14-12 18C12 20 0 14 0 6z" fill="${c || "#ff4d6d"}"/>`;
   const pause = [
-    { id: "hi", name: "Привет", svg: () => wrap(BODY + eyes(2, -1) + smile + cheeks + `<g transform="rotate(-18 168 58)"><rect x="152" y="30" width="34" height="40" rx="17" fill="#FFD21F"/><path d="M146 22q-6 8-2 18M192 30q6 8 2 18" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>` + cap("ПРИВЕТ", 192)) },
-    { id: "sleep", name: "Сплю", svg: () => wrap(BODY + closedEyes + `<ellipse cx="100" cy="120" rx="7" ry="5" fill="#fff"/>` + cheeks + `<text x="150" y="44" font-family="Arial Black, Arial" font-weight="900" font-size="30" fill="#7c9cff" stroke="#fff" stroke-width="6" paint-order="stroke">Z</text><text x="174" y="24" font-family="Arial Black, Arial" font-weight="900" font-size="20" fill="#7c9cff" stroke="#fff" stroke-width="5" paint-order="stroke">z</text>`, -6) },
-    { id: "coffee", name: "Кофе", svg: () => wrap(BODY + eyes(4, 2) + smile + cheeks + `<path d="M120 128h46v24a20 20 0 0 1-20 20h-6a20 20 0 0 1-20-20z" fill="#fff" stroke="${INK}" stroke-width="5"/><path d="M166 136h6a9 9 0 0 1 0 18h-6" fill="none" stroke="${INK}" stroke-width="5"/><path d="M134 120q-6-10 0-18M150 120q-6-10 0-18" fill="none" stroke="#c9a37a" stroke-width="5" stroke-linecap="round"/><rect x="124" y="132" width="38" height="8" rx="3" fill="#8a5a3b"/>`) },
-    { id: "ok", name: "Ок", svg: () => wrap(BODY + happyEyes + smile + cheeks + `<circle cx="160" cy="146" r="28" fill="#3ccf7a"/><path d="M146 146l10 10 18-20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`) },
-    { id: "cry", name: "Плачу", svg: () => wrap(BODY + eyes(0, 4) + `<path d="M88 126q12-10 24 0" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/><path d="M74 104q-6 24 0 46q6-10 4-46z" fill="#7fc8ff"/><path d="M126 104q6 24 0 46q-6-10-4-46z" fill="#7fc8ff"/>`) },
-    { id: "yay", name: "Ура", svg: () => wrap(BODY + happyEyes + `<path d="M84 110h32q0 22-16 22t-16-22z" fill="#fff"/><path d="M92 122h16" stroke="#ff6b8a" stroke-width="6" stroke-linecap="round"/>` + cheeks + `<rect x="20" y="20" width="12" height="7" rx="2" fill="#FFD21F" transform="rotate(30 26 23)"/><rect x="168" y="22" width="12" height="7" rx="2" fill="#ff6b8a" transform="rotate(-25 174 25)"/><circle cx="182" cy="96" r="5" fill="#7c9cff"/><circle cx="16" cy="80" r="5" fill="#3ccf7a"/><rect x="40" y="6" width="10" height="6" rx="2" fill="#7c9cff" transform="rotate(-40 45 9)"/><rect x="150" y="2" width="10" height="6" rx="2" fill="#3ccf7a" transform="rotate(20 155 5)"/>` + cap("УРА!", 194, 26)) },
-    { id: "nowork", name: "Не работаю", svg: () => wrap(BODY + eyes(-3, 0) + `<path d="M88 116h24" stroke="#fff" stroke-width="6" stroke-linecap="round"/>` + `<g transform="rotate(-8 100 160)"><rect x="34" y="136" width="132" height="46" rx="8" fill="#FFD21F" stroke="${INK}" stroke-width="4"/><text x="100" y="158" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="15" fill="${INK}">НЕ РАБОТАЮ</text><text x="100" y="174" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="${INK}">совсем</text></g>`) },
-    { id: "love", name: "Люблю", svg: () => wrap(BODY + heart(66, 78, 1.05) + heart(106, 78, 1.05) + smile + heart(156, 20, .9) + heart(20, 36, .7, "#ff8fb8") + heart(168, 120, .6, "#ff8fb8")) },
-    { id: "think", name: "Думаю", svg: () => wrap(BODY + eyes(5, -6) + `<path d="M92 120h18" stroke="#fff" stroke-width="6" stroke-linecap="round"/>` + `<text x="146" y="50" font-family="Arial Black, Arial" font-weight="900" font-size="40" fill="#FFD21F" stroke="${INK}" stroke-width="3">?</text><text x="170" y="72" font-family="Arial Black, Arial" font-weight="900" font-size="24" fill="#FFD21F" stroke="${INK}" stroke-width="2.5">?</text>`) }
+    { id: "hi", name: "Привет", svg: () => wrap(g("breathe", BODY + g("blink", eyes(2, -1)) + smile + cheeks) + g("wave", `<g transform="rotate(-18 168 58)"><rect x="152" y="30" width="34" height="40" rx="17" fill="#FFD21F"/><path d="M146 22q-6 8-2 18M192 30q6 8 2 18" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>`) + cap("ПРИВЕТ", 192)) },
+    { id: "sleep", name: "Сплю", svg: () => wrap(g("breathe", BODY + closedEyes + `<ellipse cx="100" cy="120" rx="7" ry="5" fill="#fff"/>` + cheeks) + g("zz", `<text x="150" y="44" font-family="Arial Black, Arial" font-weight="900" font-size="30" fill="#7c9cff" stroke="#fff" stroke-width="6" paint-order="stroke">Z</text>`) + g("zz2", `<text x="174" y="24" font-family="Arial Black, Arial" font-weight="900" font-size="20" fill="#7c9cff" stroke="#fff" stroke-width="5" paint-order="stroke">z</text>`), -6) },
+    { id: "coffee", name: "Кофе", svg: () => wrap(g("breathe", BODY + g("blink", eyes(4, 2)) + smile + cheeks) + g("tilt", `<path d="M120 128h46v24a20 20 0 0 1-20 20h-6a20 20 0 0 1-20-20z" fill="#fff" stroke="${INK}" stroke-width="5"/><path d="M166 136h6a9 9 0 0 1 0 18h-6" fill="none" stroke="${INK}" stroke-width="5"/><rect x="124" y="132" width="38" height="8" rx="3" fill="#8a5a3b"/>`) + g("steam", `<path d="M134 120q-6-10 0-18" fill="none" stroke="#c9a37a" stroke-width="5" stroke-linecap="round"/>`) + g("steam2", `<path d="M150 120q-6-10 0-18" fill="none" stroke="#c9a37a" stroke-width="5" stroke-linecap="round"/>`)) },
+    { id: "ok", name: "Ок", svg: () => wrap(g("breathe", BODY + happyEyes + smile + cheeks) + g("pop", `<circle cx="160" cy="146" r="28" fill="#3ccf7a"/><path d="M146 146l10 10 18-20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`)) },
+    { id: "cry", name: "Плачу", svg: () => wrap(g("shake", BODY + g("blink", eyes(0, 4)) + `<path d="M88 126q12-10 24 0" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/>`) + g("drip", `<path d="M74 104q-6 24 0 46q6-10 4-46z" fill="#7fc8ff"/>`) + g("drip2", `<path d="M126 104q6 24 0 46q-6-10-4-46z" fill="#7fc8ff"/>`)) },
+    { id: "yay", name: "Ура", svg: () => wrap(g("jump", BODY + happyEyes + `<path d="M84 110h32q0 22-16 22t-16-22z" fill="#fff"/><path d="M92 122h16" stroke="#ff6b8a" stroke-width="6" stroke-linecap="round"/>` + cheeks) + g("fall", `<rect x="20" y="20" width="12" height="7" rx="2" fill="#FFD21F"/>`) + g("fall2", `<rect x="168" y="22" width="12" height="7" rx="2" fill="#ff6b8a"/>`) + g("fall3", `<rect x="40" y="6" width="10" height="6" rx="2" fill="#7c9cff"/>`) + g("fall2", `<circle cx="182" cy="96" r="5" fill="#7c9cff"/>`) + g("fall", `<circle cx="16" cy="80" r="5" fill="#3ccf7a"/>`) + g("fall3", `<rect x="150" y="2" width="10" height="6" rx="2" fill="#3ccf7a"/>`) + cap("УРА!", 194, 26)) },
+    { id: "nowork", name: "Не работаю", svg: () => wrap(g("breathe", BODY + g("blink", eyes(-3, 0)) + `<path d="M88 116h24" stroke="#fff" stroke-width="6" stroke-linecap="round"/>`) + g("wig", `<g transform="rotate(-8 100 160)"><rect x="34" y="136" width="132" height="46" rx="8" fill="#FFD21F" stroke="${INK}" stroke-width="4"/><text x="100" y="158" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="15" fill="${INK}">НЕ РАБОТАЮ</text><text x="100" y="174" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="11" fill="${INK}">совсем</text></g>`)) },
+    { id: "love", name: "Люблю", svg: () => wrap(g("breathe", BODY + g("beat", heart(66, 78, 1.05) + heart(106, 78, 1.05)) + smile) + g("rise", heart(156, 20, .9)) + g("rise2", heart(20, 36, .7, "#ff8fb8")) + g("bob", heart(168, 120, .6, "#ff8fb8"))) },
+    { id: "think", name: "Думаю", svg: () => wrap(g("tilt", BODY + g("blink", eyes(5, -6)) + `<path d="M92 120h18" stroke="#fff" stroke-width="6" stroke-linecap="round"/>`) + g("bob", `<text x="146" y="50" font-family="Arial Black, Arial" font-weight="900" font-size="40" fill="#FFD21F" stroke="${INK}" stroke-width="3">?</text>`) + g("bob2", `<text x="170" y="72" font-family="Arial Black, Arial" font-weight="900" font-size="24" fill="#FFD21F" stroke="${INK}" stroke-width="2.5">?</text>`)) }
   ];
 
   /* --- Пак «Кот Тюлень» --- */
@@ -1292,14 +1450,14 @@ const STK = (function () {
   const cHappy = `<path d="M66 96q10-12 20 0M114 96q10-12 20 0" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>`;
   const blush = `<ellipse cx="58" cy="112" rx="10" ry="6" fill="${PK}" opacity=".8"/><ellipse cx="142" cy="112" rx="10" ry="6" fill="${PK}" opacity=".8"/>`;
   const cat = [
-    { id: "purr", name: "Мур", svg: () => wrap(head() + cHappy + nose + mouthW + whisk + blush + cap("МУР", 192)) },
-    { id: "shock", name: "Шок", svg: () => wrap(head() + `<circle cx="76" cy="94" r="15" fill="#fff" stroke="${INK}" stroke-width="3"/><circle cx="124" cy="94" r="15" fill="#fff" stroke="${INK}" stroke-width="3"/><circle cx="76" cy="94" r="5" fill="${INK}"/><circle cx="124" cy="94" r="5" fill="${INK}"/>` + nose + `<ellipse cx="100" cy="132" rx="7" ry="9" fill="${INK}"/>` + whisk + `<path d="M162 56q8 12 0 18q-8-6 0-18z" fill="#7fc8ff"/>`) },
-    { id: "angry", name: "Злой", svg: () => wrap(head() + `<path d="M62 78 90 88M138 78 110 88" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><ellipse cx="78" cy="98" rx="8" ry="6" fill="${INK}"/><ellipse cx="122" cy="98" rx="8" ry="6" fill="${INK}"/>` + nose + `<path d="M88 132q12-8 24 0" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>` + whisk + `<path d="M160 40l6 10 10-4-6 10 10 6-12 2 2 12-8-8-8 8 2-12-12-2 10-6-6-10 10 4z" fill="#ff5a5a"/>`) },
-    { id: "melt", name: "Растёкся", svg: () => wrap(`<ellipse cx="100" cy="160" rx="84" ry="18" fill="${OR}" opacity=".9"/>` + `<g transform="translate(0 40)">${head(.62)}</g>` + `<path d="M66 128q10 6 20 0M114 128q10 6 20 0" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>` + `<path d="M94 142h12l-6 6z" fill="${PK}"/>` + cap("ЛЕНЬ", 40, 24)) },
-    { id: "love", name: "Влюблён", svg: () => wrap(head() + heart(62, 82, 1.1) + heart(112, 82, 1.1) + nose + mouthW + whisk + blush + heart(160, 30, .8, "#ff8fb8") + heart(22, 44, .6)) },
-    { id: "sleep", name: "Спит", svg: () => wrap(head() + `<path d="M66 96q10 8 20 0M114 96q10 8 20 0" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>` + nose + `<path d="M96 126q4 4 8 0" fill="none" stroke="${INK}" stroke-width="3"/>` + whisk + `<circle cx="114" cy="122" r="11" fill="#cfe8ff" stroke="#9fcfff" stroke-width="2"/>` + `<text x="148" y="40" font-family="Arial Black, Arial" font-weight="900" font-size="26" fill="#7c9cff" stroke="#fff" stroke-width="5" paint-order="stroke">Zz</text>`, 6) },
-    { id: "meow", name: "Мяу", svg: () => wrap(head() + cEyes + nose + `<path d="M84 124q16 26 32 0z" fill="#8a2f3c"/><path d="M90 124l4 8 4-8" fill="#fff"/>` + whisk + cap("МЯУ!", 192, 26)) },
-    { id: "fish", name: "Рыбка", svg: () => wrap(head() + cHappy + nose + whisk + blush + `<g transform="rotate(-10 120 134)"><path d="M92 134q24-18 52 0q-28 18-52 0z" fill="#6fb6ff" stroke="${INK}" stroke-width="3"/><path d="M144 134l18-12v24z" fill="#6fb6ff" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><circle cx="104" cy="131" r="3" fill="${INK}"/></g>`) }
+    { id: "purr", name: "Мур", svg: () => wrap(g("tilt", head() + cHappy + nose + mouthW + whisk + blush) + cap("МУР", 192)) },
+    { id: "shock", name: "Шок", svg: () => wrap(g("shake", head() + `<circle cx="76" cy="94" r="15" fill="#fff" stroke="${INK}" stroke-width="3"/><circle cx="124" cy="94" r="15" fill="#fff" stroke="${INK}" stroke-width="3"/><circle cx="76" cy="94" r="5" fill="${INK}"/><circle cx="124" cy="94" r="5" fill="${INK}"/>` + nose + `<ellipse cx="100" cy="132" rx="7" ry="9" fill="${INK}"/>` + whisk) + g("drip", `<path d="M162 56q8 12 0 18q-8-6 0-18z" fill="#7fc8ff"/>`)) },
+    { id: "angry", name: "Злой", svg: () => wrap(g("shake", head() + `<path d="M62 78 90 88M138 78 110 88" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><ellipse cx="78" cy="98" rx="8" ry="6" fill="${INK}"/><ellipse cx="122" cy="98" rx="8" ry="6" fill="${INK}"/>` + nose + `<path d="M88 132q12-8 24 0" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>` + whisk) + g("beat", `<path d="M160 40l6 10 10-4-6 10 10 6-12 2 2 12-8-8-8 8 2-12-12-2 10-6-6-10 10 4z" fill="#ff5a5a"/>`)) },
+    { id: "melt", name: "Растёкся", svg: () => wrap(g("squish", `<ellipse cx="100" cy="160" rx="84" ry="18" fill="${OR}" opacity=".9"/>` + `<g transform="translate(0 40)">${head(.62)}</g>` + `<path d="M66 128q10 6 20 0M114 128q10 6 20 0" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>` + `<path d="M94 142h12l-6 6z" fill="${PK}"/>`) + cap("ЛЕНЬ", 40, 24)) },
+    { id: "love", name: "Влюблён", svg: () => wrap(g("tilt", head() + g("beat", heart(62, 82, 1.1) + heart(112, 82, 1.1)) + nose + mouthW + whisk + blush) + g("rise", heart(160, 30, .8, "#ff8fb8")) + g("rise2", heart(22, 44, .6))) },
+    { id: "sleep", name: "Спит", svg: () => wrap(g("breathe", head() + `<path d="M66 96q10 8 20 0M114 96q10 8 20 0" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>` + nose + `<path d="M96 126q4 4 8 0" fill="none" stroke="${INK}" stroke-width="3"/>` + whisk) + g("bubble", `<circle cx="114" cy="122" r="11" fill="#cfe8ff" stroke="#9fcfff" stroke-width="2"/>`) + g("zz", `<text x="148" y="40" font-family="Arial Black, Arial" font-weight="900" font-size="26" fill="#7c9cff" stroke="#fff" stroke-width="5" paint-order="stroke">Zz</text>`), 6) },
+    { id: "meow", name: "Мяу", svg: () => wrap(g("jump", head() + g("blink", cEyes) + nose + g("yap", `<path d="M84 124q16 26 32 0z" fill="#8a2f3c"/><path d="M90 124l4 8 4-8" fill="#fff"/>`) + whisk) + cap("МЯУ!", 192, 26)) },
+    { id: "fish", name: "Рыбка", svg: () => wrap(g("tilt", head() + cHappy + nose + whisk + blush) + g("swim", `<g transform="rotate(-10 120 134)"><path d="M92 134q24-18 52 0q-28 18-52 0z" fill="#6fb6ff" stroke="${INK}" stroke-width="3"/><path d="M144 134l18-12v24z" fill="#6fb6ff" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><circle cx="104" cy="131" r="3" fill="${INK}"/></g>`)) }
   ];
   const PACKS = [{ id: "pause", name: "Пауза", items: pause }, { id: "cat", name: "Кот Тюлень", items: cat }];
   const cache = {};

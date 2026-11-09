@@ -68,7 +68,8 @@ let FS, LET = [], OI, OINK;
 const ROWS = 10, PITCH = 108, SLAT = 96;
 function measure() {
   const m = el("a", cam, { fontSize: "100px", lineHeight: "1", whiteSpace: "pre" });
-  m.textContent = "РАБОТАЕМ"; const w100 = m.getBoundingClientRect().width; m.remove();
+  const CR = cam.getBoundingClientRect(), SC = CR.width / 1920;   // поправка на масштаб окна
+  m.textContent = "РАБОТАЕМ"; const w100 = m.getBoundingClientRect().width / SC; m.remove();
   FS = Math.round(1460 / w100 * 100);
   const lineGap = FS * .86;
   const lines = [["НЕ", 540 - lineGap + FS * .1], ["РАБОТАЕМ", 540 + FS * .1]];
@@ -80,7 +81,7 @@ function measure() {
     for (const ch of txt) { const s = document.createElement("span"); s.textContent = ch; row.appendChild(s); }
     for (const s of row.children) {
       const r = s.getBoundingClientRect();
-      LET.push({ ch: s.textContent, x: r.left, y: r.top, w: r.width, h: r.height, line: txt === "НЕ" ? 0 : 1 });
+      LET.push({ ch: s.textContent, x: (r.left - CR.left) / SC, y: (r.top - CR.top) / SC, w: r.width / SC, h: r.height / SC, line: txt === "НЕ" ? 0 : 1 });
     }
     row.remove();
   }
@@ -301,7 +302,7 @@ function seek(t) {
   if (t >= 3.2 && t < 3.8) {
     box(plateTxt, PLATE.x, PLATE.y, PLATE.w, PLATE.h);
     let x = 0; const ws = [];
-    plateLet.forEach((s) => ws.push(s.getBoundingClientRect().width / (parseFloat(cam.style.transform.slice(6)) || 1)));
+    plateLet.forEach((s) => ws.push(s.offsetWidth));
     const total = ws.reduce((a, b) => a + b, 0); x = (PLATE.w - total) / 2;
     plateLet.forEach((s, i) => {
       const inn = 1 - sp(t, 3.22 + i * .025, 20), out = ei(sg(t, 3.5 + i * .02, 3.72 + i * .02));
@@ -481,6 +482,7 @@ async (wantBuffer) => {
   const bytes = new Uint8Array(ab); let s = ""; for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
   return { b64: btoa(s), peak };
 };
+if (MODE === "render") { const m = location.search.match(/[?&]t=([\d.]+)/); if (m) window.ready.then(() => seek(+m[1])); }
 if (MODE === "loop") window.ready.then(() => { const t0 = performance.now(); const loop = (n) => { seek((n - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
 if (MODE === "embed") {
   // Заставка сайта: один проход, потом ставня уезжает вверх и открывает сайт

@@ -233,6 +233,10 @@ body.dimmed #app { filter: blur(6px); }
 
 .viewer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(242,243,246,.7); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); cursor: zoom-out; }
 .viewer[hidden] { display: none; }
+.viewer { touch-action: none; }
+.viewer img { will-change: transform; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.vclose { position: absolute; top: calc(14px + var(--sat)); right: 14px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: var(--lift); display: grid; place-items: center; color: var(--ink); animation: rise .35s var(--ease) .15s both; }
+.vclose svg { width: 20px; height: 20px; }
 .viewer img { max-width: 92vw; max-height: 90vh; border-radius: 20px; box-shadow: var(--wide); animation: cardIn .45s var(--ease); }
 .toast { position: fixed; z-index: 50; left: 50%; bottom: calc(26px + var(--sab)); transform: translateX(-50%); padding: 11px 18px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 14px; box-shadow: var(--wide); animation: rise .34s var(--ease); }
 .toast[hidden] { display: none; }
@@ -676,7 +680,7 @@ button, .row, .rx, .chip, .wtile { touch-action: manipulation; }
 </div>
 
 <div class="menu" id="menu" hidden role="menu"></div>
-<div class="viewer" id="viewer" hidden><img alt=""></div>
+<div class="viewer" id="viewer" hidden><img alt=""><button class="vclose" id="vClose" aria-label="Закрыть фото"><svg><use href="#i-x"/></svg></button></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -992,7 +996,7 @@ function enterRoom(rid) {
 function closeChatMobile() { $("#app").classList.remove("in-chat"); ta.blur(); togglePicker(false); }
 $("#back").onclick = () => { if (history.state && history.state.chat) history.back(); else closeChatMobile(); };
 // Системная кнопка «Назад» на телефоне возвращает к списку чатов
-addEventListener("popstate", () => { if (isMobile() && $("#app").classList.contains("in-chat")) closeChatMobile(); });
+addEventListener("popstate", () => { if (!$("#viewer").hidden) return; if (isMobile() && $("#app").classList.contains("in-chat") && !(history.state && history.state.chat)) closeChatMobile(); });
 function pushChatState() { if (isMobile() && !S.booting && !(history.state && history.state.chat)) history.pushState({ chat: 1 }, "", location.href); }
 // Видимая высота экрана (без клавиатуры)
 (function () {
@@ -1163,21 +1167,52 @@ $("#msgsInner").addEventListener("click", (e) => {
 $("#msgsInner").addEventListener("contextmenu", (e) => { const el = e.target.closest(".m"); if (!el || (S.msgs[el.dataset.k] || {}).deleted) return; e.preventDefault(); showMenu(el, { left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }); });
 function zoomFrames(a, b) { return [{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px) scale(${a.width / b.width})`, borderRadius: "28px" }, { transform: "none", borderRadius: "20px" }]; }
 async function openViewer(thumb) {
-  const v = $("#viewer"), im = v.querySelector("img"); clearTimeout(v._t); v.getAnimations().forEach((a) => a.cancel()); im.src = thumb.src; v.classList.remove("out"); v.hidden = false; v._thumb = thumb;
+  const v = $("#viewer"), im = v.querySelector("img"); clearTimeout(v._t); v.getAnimations().forEach((a) => a.cancel()); im.getAnimations().forEach((a) => a.cancel());
+  im.src = thumb.src; im.style.transform = ""; v.style.background = ""; v.classList.remove("out"); v.hidden = false; v._thumb = thumb;
   im.style.animation = "none"; im.style.transformOrigin = "0 0";
+  // Шаг в истории: кнопка «Назад» закрывает фото, а не чат
+  if (!(history.state && history.state.viewer)) history.pushState(Object.assign({}, history.state, { viewer: 1 }), "", location.href);
   try { await im.decode(); } catch (e) {}
   if (!REDUCE) { im.animate(zoomFrames(thumb.getBoundingClientRect(), im.getBoundingClientRect()), { duration: 460, easing: EASE }); v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 }); }
 }
-function closeViewer() {
-  const v = $("#viewer"), im = v.querySelector("img"); if (v.hidden) return;
-  if (REDUCE || !v._thumb) { v.hidden = true; return; }
-  const fr = zoomFrames(v._thumb.getBoundingClientRect(), im.getBoundingClientRect()).reverse();
+// Закрытие: по кнопке, тапу, свайпу или «Назад»
+function closeViewer() { if ($("#viewer").hidden) return; if (history.state && history.state.viewer) history.back(); else hideViewer(); }
+function hideViewer(fling) {
+  const v = $("#viewer"), im = v.querySelector("img"); if (v.hidden || v._closing) return; v._closing = true;
+  const done = () => { v._closing = false; v.hidden = true; im.getAnimations().forEach((a) => a.cancel()); v.getAnimations().forEach((a) => a.cancel()); im.style.transform = ""; v.style.background = ""; };
+  if (REDUCE || !v._thumb || !v._thumb.isConnected) { done(); return; }
+  const cur = im.style.transform || "none";
   im.getAnimations().forEach((a) => a.cancel());
-  im.animate(fr, { duration: 360, easing: EASE, fill: "forwards" });
-  clearTimeout(v._t); v._t = setTimeout(() => { v.hidden = true; im.getAnimations().forEach((a) => a.cancel()); v.getAnimations().forEach((a) => a.cancel()); }, 370);
-  v.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, easing: "ease-in", fill: "forwards" });
+  if (fling) {
+    im.animate([{ transform: cur }, { transform: `translateY(${fling > 0 ? innerHeight : -innerHeight}px)` }], { duration: 280, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
+  } else {
+    im.style.transform = "";
+    im.animate(zoomFrames(v._thumb.getBoundingClientRect(), im.getBoundingClientRect()).reverse(), { duration: 360, easing: EASE, fill: "forwards" });
+  }
+  v.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fling ? 280 : 360, easing: "ease-in", fill: "forwards" });
+  clearTimeout(v._t); v._t = setTimeout(done, fling ? 290 : 370);
 }
-$("#viewer").onclick = closeViewer;
+addEventListener("popstate", () => { if (!$("#viewer").hidden && !(history.state && history.state.viewer)) hideViewer(); });
+$("#vClose").onclick = (e) => { e.stopPropagation(); closeViewer(); };
+(function () {
+  const v = $("#viewer"), im = v.querySelector("img"); let sy = 0, sx = 0, dy = 0, drag = false, moved = false;
+  v.addEventListener("touchstart", (e) => { if (e.touches.length !== 1) return; sy = e.touches[0].clientY; sx = e.touches[0].clientX; dy = 0; drag = true; moved = false; im.getAnimations().forEach((a) => a.cancel()); }, { passive: true });
+  v.addEventListener("touchmove", (e) => {
+    if (!drag || e.touches.length !== 1) return; e.preventDefault();
+    dy = e.touches[0].clientY - sy; const dx = e.touches[0].clientX - sx; if (Math.abs(dy) > 6 || Math.abs(dx) > 6) moved = true;
+    const k = Math.min(1, Math.abs(dy) / 300);
+    im.style.transform = `translate(${dx * .3}px,${dy}px) scale(${1 - k * .15})`;
+    v.style.background = `rgba(242,243,246,${.7 * (1 - k)})`;
+  }, { passive: false });
+  v.addEventListener("touchend", () => {
+    if (!drag) return; drag = false;
+    if (Math.abs(dy) > 110) { if (history.state && history.state.viewer) { v._fling = dy; history.back(); } else hideViewer(dy); return; }
+    if (moved) { const cur = im.style.transform; im.style.transform = ""; v.style.background = ""; im.animate([{ transform: cur }, { transform: "none" }], { duration: 300, easing: EASE }); }
+  });
+  // Если свайпнули — закрываем улётом, а не сворачиванием в миниатюру
+  addEventListener("popstate", () => { if (v._fling && !v.hidden) { const f = v._fling; v._fling = 0; hideViewer(f); } }, true);
+  v.addEventListener("click", (e) => { if (moved) { moved = false; return; } if (e.target === v || e.target === im) closeViewer(); });
+})();
 function jumpTo(mid) {
   const el = nodes.get(mid); if (!el) { toast("Это сообщение уже далеко в истории"); return; }
   el.scrollIntoView({ behavior: "smooth", block: "center" });

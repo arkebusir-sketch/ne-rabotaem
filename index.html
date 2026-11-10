@@ -778,6 +778,13 @@ img, video, svg { -webkit-user-drag: none; user-drag: none; }
   .stc-text { padding: 70px 22px 150px; }
   .overlay { overflow-y: auto; align-items: center; }
 }
+.elsewhere { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(242,244,248,.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.elsewhere[hidden] { display: none; }
+.ew-card { display: grid; gap: 10px; max-width: 340px; padding: 26px; border-radius: 26px; text-align: center; animation: cardIn .4s var(--ease) both; }
+.ew-card b { font-weight: 600; font-size: 19px; letter-spacing: -.01em; } .ew-card span { color: var(--grey); line-height: 1.4; }
+.ew-card button { margin-top: 8px; height: 46px; border-radius: 14px; background: var(--ink); color: #fff; font-weight: 500; }
+.ava.saved { background: linear-gradient(150deg, #7c9cff, #b48cff); color: #fff; }
+.fwd { display: block; font-size: 12.5px; color: var(--grey); margin-bottom: 2px; }
 /* ===== v3: связка ===== */
 .input-row { position: relative; }
 .input-row .rec-btn { z-index: 3; flex: none; }
@@ -821,6 +828,7 @@ img, video, svg { -webkit-user-drag: none; user-drag: none; }
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
   <symbol id="i-wall" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m4 17 5-5 4 4 2.5-2.5L20 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="15.5" cy="9" r="1.6" fill="currentColor"/></symbol>
   <symbol id="i-leave" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M7 3.5h10A1.5 1.5 0 0 1 18.5 5v15.5L12 16l-6.5 4.5V5A1.5 1.5 0 0 1 7 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   <symbol id="i-cam" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
@@ -952,6 +960,7 @@ img, video, svg { -webkit-user-drag: none; user-drag: none; }
 <div class="story" id="story" hidden><div class="story-frame" id="stFrame"></div></div>
 <div class="stc" id="stc" hidden><div class="story-frame" id="stcFrame"></div></div>
 <input type="file" id="stFile" accept="image/*" hidden>
+<div class="elsewhere" id="elsewhere" hidden><div class="glass ew-card"><b>Чат открыт в другой вкладке</b><span>Чтобы всё работало быстро, он живёт в одной вкладке.</span><button class="btn" id="ewHere" type="button">Продолжить здесь</button></div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -963,6 +972,8 @@ const DB = (qs.get("db") || "https://ne-rabotaem-default-rtdb.europe-west1.fireb
 const COLORS = ["#c9d6ff", "#ffd9c7", "#cff1e1", "#eadcff", "#fff0b8", "#ffd1e3", "#d4eef9", "#e6e8ee"];
 const REACTS = { heart: "❤️", lol: "😂", fire: "🔥", ok: "👍", wow: "😮", sad: "😢" };
 const GENERAL = "general";
+const savedId = () => "dm_" + me.uid + "_" + me.uid;
+const isSaved = (rid) => !!me && rid === savedId();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const SV = { ".sv": "timestamp" };
@@ -982,14 +993,16 @@ const TOKEN_URL = qs.get("tok") || "https://securetoken.googleapis.com/v1/token?
 let SESS = null; try { SESS = JSON.parse(localStorage.getItem("chat.sess") || "null"); } catch (e) {}
 function saveSess(x) { SESS = x; if (x) localStorage.setItem("chat.sess", JSON.stringify(x)); else localStorage.removeItem("chat.sess"); }
 let refreshing = null;
-async function token() {
+let lastRefresh = 0;
+async function token(force) {
   if (!SESS) return null;
-  if (Date.now() < SESS.exp - 120000) return SESS.idToken;
+  if (!force && Date.now() < SESS.exp - 120000) return SESS.idToken;
+  if (force && Date.now() - lastRefresh < 30000) return SESS.idToken;
   if (!refreshing) refreshing = (async () => {
     const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(SESS.refreshToken) });
     const j = await r.json().catch(() => ({}));
     if (!j.id_token) { if (r.status === 400) authLost(); throw new Error("token"); }
-    saveSess({ uid: j.user_id || SESS.uid, idToken: j.id_token, refreshToken: j.refresh_token, exp: Date.now() + Number(j.expires_in || 3600) * 1000 });
+    saveSess({ uid: j.user_id || SESS.uid, idToken: j.id_token, refreshToken: j.refresh_token, exp: Date.now() + Number(j.expires_in || 3600) * 1000 }); lastRefresh = Date.now();
   })().finally(() => (refreshing = null));
   await refreshing; return SESS && SESS.idToken;
 }
@@ -1003,8 +1016,11 @@ const withAuth = (url, t) => url + (t ? (url.includes("?") ? "&" : "?") + "auth=
 
 /* ===== База: REST + поток событий ===== */
 async function req(method, path, body) {
-  const t = await token();
-  const r = await fetch(withAuth(DB + path + ".json", t), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  let t = await token();
+  const go = () => fetch(withAuth(DB + path + ".json", t), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  let r = await go();
+  // Токен мог протухнуть раньше срока (например, сбиты часы на компьютере): берём свежий и пробуем ещё раз
+  if (r.status === 401 && t) { const t2 = await token(true).catch(() => t); if (t2 && t2 !== t) { t = t2; r = await go(); } }
   if (r.status === 401) { const e = new Error("denied"); e.denied = true; if (!t) authLost(); throw e; }
   if (!r.ok) throw new Error("db " + r.status);
   return r.json();
@@ -1019,25 +1035,54 @@ function setAt(tree, path, val) {
   if (val == null) delete o[k]; else o[k] = val;
   return tree;
 }
+// Браузер держит не больше шести соединений с базой на все вкладки сразу,
+// поэтому потоков всего три, а вкладка в фоне свои потоки отпускает.
+const STREAMS = new Set(); let ASLEEP = false, ELSEWHERE = false;
 function stream(path, query, onData, onDenied) {
-  let tree = {}, es = null, closed = false, renewT = 0;
-  const open = async () => {
+  let tree = {}, es = null, closed = false, renewT = 0, got = false, retryT = 0;
+  const open = async (force) => {
+    if (closed || ELSEWHERE || document.hidden && ASLEEP) return;
+    let t = null; try { t = await token(force); } catch (e) { retryT = setTimeout(open, 5000); return; }
     if (closed) return;
-    let t = null; try { t = await token(); } catch (e) { setTimeout(open, 5000); return; }
-    if (closed) return;
-    es && es.close();
+    es && es.close(); got = false;
     es = new EventSource(withAuth(DB + path + ".json" + (query || ""), t));
     // Токен живёт час: переподключаемся заранее со свежим
     clearTimeout(renewT); if (SESS) renewT = setTimeout(open, Math.max(60000, SESS.exp - Date.now() - 90000));
-    es.addEventListener("auth_revoked", () => { es.close(); open(); });
-    es.addEventListener("put", (e) => { const d = JSON.parse(e.data); tree = setAt(tree, d.path, d.data); onData(tree, d); });
-    es.addEventListener("patch", (e) => { const d = JSON.parse(e.data); for (const k in d.data) tree = setAt(tree, d.path.replace(/\/$/, "") + "/" + k, d.data[k]); onData(tree, d); });
+    es.addEventListener("auth_revoked", () => { es.close(); open(true); });
+    es.addEventListener("put", (e) => { got = true; const d = JSON.parse(e.data); tree = setAt(tree, d.path, d.data); onData(tree, d); });
+    es.addEventListener("patch", (e) => { got = true; const d = JSON.parse(e.data); for (const k in d.data) tree = setAt(tree, d.path.replace(/\/$/, "") + "/" + k, d.data[k]); onData(tree, d); });
     // Отказ в доступе: база не пустила по правилам
     es.addEventListener("cancel", () => { closed = true; es.close(); (onDenied || deniedToast)(); });
-    es.onerror = () => { if (es.readyState === 2 && !closed) setTimeout(open, 3000); };
+    // Если соединение оборвалось, не успев ничего прислать, скорее всего не подошёл токен
+    es.onerror = () => { if (es.readyState === 2 && !closed) { clearTimeout(retryT); retryT = setTimeout(() => open(!got), 3000); } };
   };
-  open();
-  return () => { closed = true; clearTimeout(renewT); es && es.close(); };
+  const h = { sleep() { clearTimeout(renewT); clearTimeout(retryT); es && es.close(); es = null; }, wake() { if (!closed && !es) open(); } };
+  STREAMS.add(h); open();
+  return () => { closed = true; clearTimeout(renewT); clearTimeout(retryT); es && es.close(); STREAMS.delete(h); };
+}
+let sleepT = 0;
+document.addEventListener("visibilitychange", () => {
+  clearTimeout(sleepT);
+  if (document.hidden) sleepT = setTimeout(() => { ASLEEP = true; STREAMS.forEach((h) => h.sleep()); }, 20000);
+  else if (ASLEEP) { ASLEEP = false; if (!ELSEWHERE) STREAMS.forEach((h) => h.wake()); }
+});
+// Чат работает в одной вкладке: новая вкладка забирает соединения, старая ждёт
+const TAB = Math.random().toString(36).slice(2), BC = "BroadcastChannel" in window ? new BroadcastChannel("pereryv") : null;
+function claimTab() {
+  ELSEWHERE = false; $("#elsewhere").hidden = true;
+  BC && BC.postMessage({ t: "here", id: TAB });
+  STREAMS.forEach((h) => h.wake());
+}
+if (BC) BC.onmessage = (e) => {
+  if (!e.data || e.data.t !== "here" || e.data.id === TAB || ELSEWHERE || !STREAMS.size) return;
+  ELSEWHERE = true; STREAMS.forEach((h) => h.sleep()); $("#elsewhere").hidden = false;
+};
+// Редко меняющееся и мелкое опрашиваем, а не держим на отдельном соединении
+function poll(path, ms, onData) {
+  let busy = false;
+  const go = () => { if (busy || document.hidden || ELSEWHERE) return; busy = true; req("GET", path).then((t) => onData(t || {})).catch(() => {}).finally(() => (busy = false)); };
+  go(); setInterval(go, ms); document.addEventListener("visibilitychange", () => { if (!document.hidden) go(); });
+  return go;
 }
 function deniedToast() { toast("Нет доступа к этому чату"); }
 let netShown = false;
@@ -1064,12 +1109,14 @@ function avaHTML(uid, size, name, color, extra) {
 }
 function roomAva(r, rid, size) {
   if (rid === GENERAL) return `<span class="ava ${size || ""}" style="background:#fff"><svg class="mark"><use href="#logo"/></svg></span>`;
+  if (isSaved(rid)) return `<span class="ava saved ${size || ""}"><svg class="mark"><use href="#i-save"/></svg></span>`;
   if (r.type === "dm") { const o = dmOther(r); return avaHTML(o, size); }
   return `<span class="ava ${size || ""}" style="background:${esc(r.color || COLORS[3])}">${esc(initial(r.title))}</span>`;
 }
 const dmOther = (r) => Object.keys(r.members || {}).find((u) => u !== me.uid) || me.uid;
 function roomTitle(r, rid) {
   if (rid === GENERAL) return "Общий чат";
+  if (isSaved(rid)) return "Избранное";
   if (r.type === "dm") { const o = dmOther(r); return o === me.uid ? "Заметки себе" : ((S.users[o] || {}).name || "Собеседник"); }
   return r.title || "Группа";
 }
@@ -1154,6 +1201,7 @@ function unread(rid) {
 function roomIds() {
   const ids = Object.keys(S.rooms).filter((id) => visible(S.rooms[id], id));
   if (!ids.includes(GENERAL)) ids.push(GENERAL);
+  if (!ids.includes(savedId())) ids.push(savedId());
   return ids.sort((a, b) => ((S.rooms[b] || {}).last || {}).ts - ((S.rooms[a] || {}).last || {}).ts || 0);
 }
 function typersIn(rid) {
@@ -1171,10 +1219,10 @@ function renderList() {
       const who = last.from && last.from === me.uid ? "Вы: " : (r.type === "group" || rid === GENERAL) && last.from && S.users[last.from] ? S.users[last.from].name + ": " : "";
       const b = document.createElement("button"); b.className = "row" + (rid === S.room ? " active" : "") + (un ? " unread" : ""); b.dataset.id = "r" + rid;
       const ty = typersIn(rid);
-      const subHTML = ty.length ? `<span style="color:var(--ink-2)">${esc(ty.length > 1 ? ty.length + " печатают" : (r.type === "dm" ? "" : ty[0] + " ") + "печатает")}</span><span class="typing-dots"><i></i><i></i><i></i></span>` : esc(last.text ? who + last.text : rid === GENERAL ? "Все, кто зашёл" : "Пусто");
+      const subHTML = ty.length ? `<span style="color:var(--ink-2)">${esc(ty.length > 1 ? ty.length + " печатают" : (r.type === "dm" ? "" : ty[0] + " ") + "печатает")}</span><span class="typing-dots"><i></i><i></i><i></i></span>` : esc(last.text ? (isSaved(rid) ? "" : who) + last.text : rid === GENERAL ? "Все, кто зашёл" : isSaved(rid) ? "Заметки и сохранённое" : "Пусто");
       const mineLast = last.from === me.uid && last.ts;
       const popDot = un && !S.unreadSeen.has(rid);
-      b.innerHTML = roomAva(r, rid) + `<span style="min-width:0"><span class="name" style="display:block">${esc(title)}</span><span class="sub" style="display:block">${subHTML}</span></span><span class="meta"><span>${mineLast ? chk(readBy(rid, last.ts)) : ""}${esc(fmtListTime(last.ts))}</span>${un ? `<span class="dot${popDot ? "" : " still"}">•</span>` : ""}</span>`;
+      b.innerHTML = roomAva(r, rid) + `<span style="min-width:0"><span class="name" style="display:block">${esc(title)}</span><span class="sub" style="display:block">${subHTML}</span></span><span class="meta"><span>${mineLast && !isSaved(rid) ? chk(readBy(rid, last.ts)) : ""}${esc(fmtListTime(last.ts))}</span>${un ? `<span class="dot${popDot ? "" : " still"}">•</span>` : ""}</span>`;
       b.onclick = () => openRoom(rid);
       frag.appendChild(b);
     });
@@ -1246,6 +1294,7 @@ function enterRoom(rid) {
   nodes = new Map(); firstPaint = true; newBelow = 0;
   $("#msgsInner").replaceChildren(); $("#replyBar").classList.remove("show"); $("#text").value = ""; autosize(); updateSend();
   $("#composer").classList.remove("off");
+  if (isSaved(rid) && !(S.rooms[rid] && S.rooms[rid].members)) { S.rooms[rid] = Object.assign({ type: "dm", members: { [me.uid]: true } }, S.rooms[rid] || {}); req("PATCH", "/rooms/" + rid, { type: "dm", members: { [me.uid]: true } }).then(() => { if (S.room === rid) startMsgs(rid); }).catch(() => {}); }
   if (rid === GENERAL && !S.rooms[GENERAL]) req("PATCH", "/rooms/" + GENERAL, { title: "Общий чат", type: "public" }).catch(() => {});
   startMsgs(rid);
   if (!isMobile()) setTimeout(() => $("#text").focus(), 50);
@@ -1315,6 +1364,7 @@ function renderHeader(anim) {
   else {
     sub.className = "c-sub";
     if (rid === GENERAL) { const on = Object.keys(S.users).filter(online).length; const n = Object.keys(S.users).length; sub.textContent = n + " " + plural(n, "участник", "участника", "участников") + ", " + on + " в сети"; }
+    else if (isSaved(rid)) sub.textContent = "видно только вам";
     else if (r.type === "dm") { const o = dmOther(r); sub.textContent = o === me.uid ? "только вы" : online(o) ? "в сети" : lastSeen((S.users[o] || {}).seen); }
     else { const n = Object.keys(r.members || {}).length; sub.textContent = n + " " + plural(n, "участник", "участника", "участников"); }
   }
@@ -1380,7 +1430,7 @@ function renderMsgs() {
 function readSig(m) {
   if (m.from !== me.uid || m.sys) return "";
   if (m.pending) return "p";
-  return readBy(S.room, m.ts || 0) ? "r" : "s";
+  return isSaved(S.room) || readBy(S.room, m.ts || 0) ? "r" : "s";
 }
 function paintMsg(el, k, m, first, last) {
   if (m.sys) { el.className = "day"; el.style.cssText = "align-self:center"; el.textContent = m.text; return; }
@@ -1395,6 +1445,7 @@ function paintMsg(el, k, m, first, last) {
   if (m.deleted) html += `<span class="txt${txtChanged ? " swap" : ""}">сообщение удалено</span>`;
   else {
     if (m.reply) html += `<button class="quote" data-jump="${esc(m.reply.mid)}"><b>${esc(m.reply.name)}</b><span>${esc(m.reply.text)}</span></button>`;
+    if (m.fwd) html += `<span class="fwd">Переслано от ${esc(m.fwd)}</span>`;
     if (m.story) html += storyRefHTML(m.story).replace('class="story-ref"', `class="story-ref" data-story="${esc(m.story.uid)}"`);
     if (m.img) html += `<img class="photo" src="${esc(m.img)}" alt="Фото" loading="lazy">`;
     if (m.photo) { const p = m.photo, ar = p.w && p.h ? p.w / p.h : 4 / 3; html += `<span class="photo-wrap loading" data-media="${esc(p.id)}" data-kind="photo" data-rid="${esc(S.room)}" style="aspect-ratio:${ar.toFixed(3)}"><img class="photo" alt="Фото" src="${esc(p.th || "")}"><span class="spin-ring"></span></span>`; }
@@ -1512,6 +1563,7 @@ function showMenu(el, rect) {
   menu.innerHTML = `<div class="emo">${Object.keys(REACTS).map((x) => `<button data-rx="${x}" aria-label="${x}">${REACTS[x]}</button>`).join("")}</div>
     <button class="it" data-a="reply"><svg><use href="#i-reply"/></svg>Ответить</button>
     ${m.text ? `<button class="it" data-a="copy"><svg><use href="#i-copy"/></svg>Копировать</button>` : ""}
+    ${!isSaved(S.room) && !m.deleted ? `<button class="it" data-a="save"><svg><use href="#i-save"/></svg>В избранное</button>` : ""}
     ${mine && m.text ? `<button class="it" data-a="edit"><svg><use href="#i-edit"/></svg>Изменить</button>` : ""}
     ${mine ? `<button class="it danger" data-a="del"><svg><use href="#i-trash"/></svg>Удалить</button>` : ""}`;
   menu.classList.remove("out"); clearTimeout(menuT); menu.hidden = false;
@@ -1535,6 +1587,7 @@ $("#menu").addEventListener("click", async (e) => {
   const rx = e.target.closest("[data-rx]"); if (rx) { toggleReact(k, rx.dataset.rx); hideMenu(); return; }
   const a = (e.target.closest("[data-a]") || {}).dataset; if (!a) return; const target = nodes.get(k); hideMenu();
   if (a.a === "reply") startReply(k);
+  if (a.a === "save") { saveToSaved(m, S.room); return; }
   if (a.a === "copy") { try { await navigator.clipboard.writeText(m.text); toast("Скопировано"); } catch (err) { toast("Не получилось скопировать"); } }
   if (a.a === "edit") startEdit(k);
   if (a.a === "del") { if (confirm("Удалить сообщение для всех?")) { const bb = target && target.querySelector(".b"); if (bb && !REDUCE) { bb.classList.add("squash"); await new Promise((res) => setTimeout(res, 300)); } await req("PATCH", "/msgs/" + S.room + "/" + k, { deleted: true, text: null, img: null, photo: null, voice: null, video: null, story: null, reply: null, react: null }).catch(netError); maybeFixLast(k); const mid = (m.photo || m.voice || m.video || {}).id; if (mid) req("DELETE", "/media/" + S.room + "/" + mid).catch(() => {}); } }
@@ -1701,6 +1754,25 @@ function lastUpdate(rid, text) {
   if (rid === GENERAL) { u["rooms/" + GENERAL + "/title"] = "Общий чат"; u["rooms/" + GENERAL + "/type"] = "public"; }
   return req("PATCH", "", u);
 }
+// Копия сообщения в «Избранное»: медиа переезжает вместе с ним
+async function saveToSaved(m, fromRid) {
+  const rid = savedId();
+  try {
+    if (!(S.rooms[rid] && S.rooms[rid].members)) { await req("PATCH", "/rooms/" + rid, { type: "dm", members: { [me.uid]: true } }); S.rooms[rid] = Object.assign({ type: "dm", members: { [me.uid]: true } }, S.rooms[rid] || {}); }
+    const msg = { from: me.uid, ts: SV, cid: rnd() };
+    if (m.text) msg.text = m.text; if (m.sticker) msg.sticker = m.sticker; if (m.img) msg.img = m.img;
+    if (m.from !== me.uid) msg.fwd = (S.users[m.from] || {}).name || "Кто-то";
+    for (const kind of ["photo", "voice", "video"]) if (m[kind]) {
+      const id = rnd() + rnd(), d = await mediaData(fromRid, m[kind].id);
+      await req("PUT", "/media/" + rid + "/" + id, { by: me.uid, d });
+      msg[kind] = Object.assign({}, m[kind], { id });
+    }
+    if (!msg.text && !msg.sticker && !msg.img && !msg.photo && !msg.voice && !msg.video) { toast("Это сообщение не сохранить"); return; }
+    await req("POST", "/msgs/" + rid, msg);
+    await lastUpdate(rid, msg.text || mediaLabel(msg));
+    toast("Сохранено в избранное");
+  } catch (e) { if (e.denied) toast("Не получилось сохранить"); else netError(); }
+}
 const prevAsked = {};
 function syncPreviews() {
   roomIds().forEach((rid) => {
@@ -1787,7 +1859,7 @@ let readT = 0;
 function markRead() {
   if (document.hidden || !S.room) return;
   const keys = Object.keys(S.msgs); if (!keys.length) return;
-  clearTimeout(readT); readT = setTimeout(() => { req("PUT", "/reads/" + S.room + "/" + me.uid, SV).catch(() => {}); }, 600);
+  clearTimeout(readT); readT = setTimeout(() => { const rid = S.room; if (!rid) return; (S.reads[rid] = S.reads[rid] || {})[me.uid] = now(); req("PUT", "/reads/" + rid + "/" + me.uid, SV).catch(() => {}); }, 600);
 }
 async function heartbeat() {
   try {
@@ -2086,6 +2158,7 @@ function avatarEditor(host, st, onChange) {
 
 $("#cHead").onclick = () => {
   const r = S.rooms[S.room] || {};
+  if (isSaved(S.room)) return;
   if (r.type === "dm") openProfile(dmOther(r), $("#cAva .ava")); else openGroupProfile(S.room);
 };
 
@@ -2881,9 +2954,12 @@ $("#profScroll").addEventListener("click", async (e) => {
   if (a === "leave") { closeProfile(); setTimeout(() => $("#leave").click(), 280); }
 });
 
+let pollReads = () => {};
 /* ===== Запуск ===== */
 function start() {
   document.body.classList.remove("locked");
+  $("#ewHere").onclick = () => { claimTab(); heartbeat(); };
+  BC && BC.postMessage({ t: "here", id: TAB });
   renderMe(); heartbeat(); setInterval(heartbeat, 25000);
   setInterval(() => { renderList(); if (S.room) renderHeader(false); }, 15000);
   stream("/users", "", (t) => {
@@ -2897,8 +2973,11 @@ function start() {
   loadStories(); setInterval(() => { if (!document.hidden) loadStories(); }, 40000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadStories(); });
   stream("/rooms", "", (t) => { S.rooms = t || {}; renderList(); syncPreviews(); if (S.room) renderHeader(false); });
-  stream("/reads", "", (t) => { S.reads = t || {}; renderList(); if (S.room) renderMsgs(); });
-  stream("/typing", "", (t) => { S.typing = t || {}; renderList(); if (S.room) renderHeader(false); });
+  let rdSig = "", tySig = "";
+  pollReads = poll("/reads", 5000, (t) => { const g = JSON.stringify(t); if (g === rdSig) return; rdSig = g; S.reads = t; renderList(); if (S.room) renderMsgs(); });
+  poll("/typing", 3000, (t) => { const g = JSON.stringify(t); if (g === tySig) return; tySig = g; S.typing = t; renderList(); if (S.room) renderHeader(false); });
+  // Если база так и не ответила, говорим об этом прямо, а не показываем пустой чат
+  setTimeout(() => { if (!S.msgsReady) toast("База не отвечает. Закройте другие вкладки с чатом и обновите страницу"); }, 12000);
   setInterval(() => { if (Object.keys(S.typing).length) { renderList(); if (S.room) renderHeader(false); } }, 3000);
   const want = location.hash.slice(1);
   S.booting = true; openRoom(want && !isMobile() ? want : GENERAL); S.booting = false;

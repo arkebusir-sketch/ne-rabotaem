@@ -770,6 +770,14 @@ img, video, svg { -webkit-user-drag: none; user-drag: none; }
 }
 @keyframes riseLite { from { opacity: 0; transform: translateY(14px); } }
 
+/* ===== Телефон: всё живёт в видимой части экрана, над клавиатурой ===== */
+@media (max-width: 760px) {
+  .overlay, .story, .stc, .prof, .viewer { bottom: auto; height: var(--app-h, 100dvh); }
+  .story, .stc { align-items: stretch; }
+  .story-frame { width: 100vw; height: 100%; max-height: none; }
+  .stc-text { padding: 70px 22px 150px; }
+  .overlay { overflow-y: auto; align-items: center; }
+}
 /* ===== v3: связка ===== */
 .input-row { position: relative; }
 .input-row .rec-btn { z-index: 3; flex: none; }
